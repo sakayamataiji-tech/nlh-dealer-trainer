@@ -20,6 +20,7 @@ src/engine/            Poker rules engine (framework-free, fully unit-tested)
   bettingEngine.ts                    NLH betting state machine (legal actions only, min-raise, incomplete all-in)
   potCalculator.ts                    independent action-log replay → pot per street, uncalled return
   sidePotCalculator.ts                contribution-based main/side pots, eligibility, odd-chip split
+  strategy.ts                         GTO-inspired bots: position-based preflop ranges (no limping), postflop play by real hand strength
   scenarioGenerator.ts                random scenarios per mode & level; answers derived by the engine
   grading.ts                          answer check, FAST/NORMAL/SLOW, score
   realTable/types.ts                  REAL TABLE MODE design (post-MVP)

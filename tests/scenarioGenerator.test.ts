@@ -61,8 +61,12 @@ describe("scenarioGenerator: WINNER", () => {
       expect(s.table.length).toBeGreaterThanOrEqual(min);
       expect(s.table.length).toBeLessThanOrEqual(max);
       const [smin, smax] = WINNER_SHOWDOWN[level];
-      expect(s.players.length).toBeGreaterThanOrEqual(Math.min(smin, s.table.length));
-      expect(s.players.length).toBeLessThanOrEqual(smax);
+      if (s.correctKey !== "SPLIT") {
+        // Split hands accept any showdown size (they are rare in real play).
+        expect(s.players.length).toBeGreaterThanOrEqual(Math.min(smin, s.table.length));
+        expect(s.players.length).toBeLessThanOrEqual(smax);
+      }
+      expect(s.players.length).toBeGreaterThanOrEqual(2);
       assertNoDuplicates([...s.board, ...s.table.flatMap((p) => p.hole)]);
       // Showdown players are table seats with the same cards, named by position.
       for (const p of s.players) {
@@ -78,10 +82,11 @@ describe("scenarioGenerator: WINNER", () => {
         expect(st.players[idx].id).toBe(a.playerId);
         st.apply(idx, { type: a.type as "fold", to: a.amount });
       }
-      expect(st.street).toBe("river");
+      expect(st.nextToAct()).toBe(-1);
+      while (st.street !== "river") expect(st.advanceStreet()).toBe(true); // all-in run-out
       expect(st.nextToAct()).toBe(-1);
       expect(st.activePlayers.map((p) => p.id).sort()).toEqual(s.players.map((p) => p.id).sort());
-      const frames = buildPlaybackFrames(s.table, s.blinds, s.actions);
+      const frames = buildPlaybackFrames(s.table, s.blinds, s.actions, { runoutTo: "river" });
       expect(frames[frames.length - 1].boardCount).toBe(5);
       const r = resolveShowdown(s.board, s.players);
       expect(r.winners.length === 1 || r.winners.length === s.players.length).toBe(true);

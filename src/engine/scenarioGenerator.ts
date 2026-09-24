@@ -8,7 +8,8 @@
  */
 import type { AnteType, BlindStructure, Street, TableAction } from "./actions";
 import { STREETS } from "./actions";
-import { HandState, type LegalAction } from "./bettingEngine";
+import { HandState } from "./bettingEngine";
+import { type BotContext, decide } from "./strategy";
 import { type Card, makeCard, rankValue, SUITS, suitOf, type Suit } from "./cards";
 import { createDeck, Dealer } from "./deck";
 import { resolveShowdown, type ShowdownResult } from "./handComparator";
@@ -354,8 +355,6 @@ export function winnerSkills(board: readonly Card[], players: readonly WinnerPla
   return [...tags];
 }
 
-const PLAYER_NAMES = Array.from({ length: 9 }, (_, i) => `PLAYER ${i + 1}`);
-
 /** Default WINNER table size by level (a fixed size can be chosen in settings). */
 export const WINNER_PLAYERS: Record<Level, [number, number]> = {
   1: [6, 6],
@@ -368,18 +367,11 @@ export const WINNER_PLAYERS: Record<Level, [number, number]> = {
 /** How many players reach showdown, by level (capped by the table size). */
 export const WINNER_SHOWDOWN: Record<Level, [number, number]> = {
   1: [2, 2],
-  2: [2, 3],
-  3: [3, 3],
-  4: [3, 4],
-  5: [4, 4],
+  2: [2, 2],
+  3: [2, 3],
+  4: [2, 3],
+  5: [3, 4],
 };
-
-function makeWinnerPlayers(dealer: Dealer, n: number, rng: Rng): WinnerPlayer[] {
-  return Array.from({ length: n }, (_, i) => ({ id: `P${i + 1}`, name: PLAYER_NAMES[i], hole: dealer.deal(2) })).map((p) => ({
-    ...p,
-    hole: shuffle(p.hole, rng),
-  }));
-}
 
 type BoardKind = "random" | "paired" | "double-paired" | "four-flush" | "three-flush" | "connected" | "straight" | "flush" | "full-house" | "quads" | "broadway-rainbow";
 
@@ -504,209 +496,8 @@ function winnerAcceptable(level: Level, skills: SkillTag[], rng: Rng): boolean {
 
 export const WINNER_SPLIT_RATE = 0.15;
 
-/** Showdown only (hole cards + board + result) for `n` players; the table and action are added by generateWinnerScenario. */
-function generateShowdownCore(level: Level, n: number, opts: GenerateOptions): WinnerScenario {
-  const rng = opts.rng ?? defaultRng;
-  const requireBoardCards = opts.selectBoardCards ?? true;
-  const wantSplit = opts.focus === "split-pot" || rng() < WINNER_SPLIT_RATE;
-  const build = (board: Card[], players: WinnerPlayer[]): WinnerScenario => {
-    const result = resolveShowdown(board, players);
-    const skills = winnerSkills(board, players, result);
-    const correctKey = result.isSplit ? "SPLIT" : result.winners[0];
-    return {
-      id: newId(rng),
-      mode: "winner",
-      level,
-      board,
-      players,
-      table: [],
-      blinds: { sb: 0, bb: 0, ante: 0 },
-      actions: [],
-      result,
-      skills,
-      choices: [...players.map((p) => ({ key: p.id, label: p.name })), { key: "SPLIT", label: "SPLIT" }],
-      correctKey,
-      requireBoardCards,
-      targetSeconds: 3 + n * 1.5 + (requireBoardCards ? 3 : 0),
-    };
-  };
-  // MVP: only complete splits (every player ties) or a single winner. Partial ties are rejected.
-  const isValid = (r: ShowdownResult) => r.winners.length === 1 || r.winners.length === r.entries.length;
-
-  if (wantSplit) {
-    for (let i = 0; i < 400; i++) {
-      let board: Card[];
-      let players: WinnerPlayer[];
-      if (n === 2 && rng() < 0.4) {
-        // Heads-up: same hole ranks on a random board often chop.
-        const dealer = freshDealer(rng);
-        const p1 = dealer.deal(2);
-        const p2 = p1.map((c) => dealer.dealWhere((x) => rankValue(x) === rankValue(c)));
-        if (p2.some((c) => !c)) continue;
-        board = dealer.deal(5);
-        players = [
-          { id: "P1", name: PLAYER_NAMES[0], hole: p1 },
-          { id: "P2", name: PLAYER_NAMES[1], hole: p2 as Card[] },
-        ];
-      } else {
-        const { dealer, board: b } = dealBoardOfKind(rng, weightedPick(rng, SPLIT_BOARDS));
-        board = b;
-        players = makeWinnerPlayers(dealer, n, rng);
-      }
-      const r = resolveShowdown(board, players);
-      if (r.isSplit && r.winners.length === n) return build(board, players);
-    }
-    const { dealer, board } = dealBoardOfKind(rng, "broadway-rainbow");
-    return build(board, makeWinnerPlayers(dealer, n, rng));
-  }
-
-  let fallback: WinnerScenario | null = null;
-  for (let i = 0; i < 600; i++) {
-    const { dealer, board } = dealBoardOfKind(rng, weightedPick(rng, WINNER_BOARDS[level]));
-    const players = makeWinnerPlayers(dealer, n, rng);
-    const r = resolveShowdown(board, players);
-    if (!isValid(r) || r.isSplit) continue;
-    const s = build(board, players);
-    if (opts.focus) {
-      if (s.skills.includes(opts.focus)) return s;
-      fallback ??= s;
-      continue;
-    }
-    if (winnerAcceptable(level, s.skills, rng)) return s;
-    fallback ??= s;
-  }
-  if (fallback) return fallback;
-  // Extremely unlikely: fall back to plain random deals until a unique winner appears.
-  for (;;) {
-    const dealer = freshDealer(rng);
-    const board = dealer.deal(5);
-    const players = makeWinnerPlayers(dealer, n, rng);
-    if (resolveShowdown(board, players).winners.length === 1) return build(board, players);
-  }
-}
-
-/**
- * WINNER: a full table plays a hand to the river; only the chosen showdown players stay in.
- * The showdown (and its answer) is generated first, then a legal action sequence is built in
- * which every other player folds to a bet on some street.
- */
-export function generateWinnerScenario(level: Level, opts: GenerateOptions = {}): WinnerScenario {
-  const rng = opts.rng ?? defaultRng;
-  const n = clampPlayers(opts.players, 2, 9) ?? randInt(rng, ...WINNER_PLAYERS[level]);
-  const k = Math.min(n, randInt(rng, ...WINNER_SHOWDOWN[level]));
-  const core = generateShowdownCore(level, k, opts);
-
-  for (let attempt = 0; attempt < 60; attempt++) {
-    const positions = positionNames(n);
-    const seatIdx = shuffle(Array.from({ length: n }, (_, i) => i), rng).slice(0, k).sort((a, b) => a - b);
-    // Showdown hands go to the chosen seats (in a random order); everyone else gets random cards.
-    const holes = shuffle(core.players.map((p) => p.hole), rng);
-    const used = new Set<Card>([...core.board, ...holes.flat()]);
-    const rest = shuffle(createDeck().filter((c) => !used.has(c)), rng);
-    const blinds = pickBlinds(rng, "none");
-    const table: TableSeat[] = positions.map((pos, i) => {
-      const si = seatIdx.indexOf(i);
-      return {
-        id: `S${i}`,
-        name: pos,
-        position: pos,
-        stack: randInt(rng, 120, 300) * blinds.bb,
-        hole: si >= 0 ? holes[si] : rest.splice(0, 2),
-      };
-    });
-    const showdownIds = seatIdx.map((i) => `S${i}`);
-    const actions = simulateToShowdown(table, blinds, new Set(showdownIds), rng);
-    if (!actions) continue;
-
-    const players: WinnerPlayer[] = showdownIds.map((id) => {
-      const seat = table.find((t) => t.id === id)!;
-      return { id, name: seat.position, hole: seat.hole };
-    });
-    const result = resolveShowdown(core.board, players);
-    const skills = winnerSkills(core.board, players, result);
-    return {
-      ...core,
-      players,
-      table,
-      blinds,
-      actions,
-      result,
-      skills,
-      choices: [...players.map((p) => ({ key: p.id, label: p.name })), { key: "SPLIT", label: "SPLIT" }],
-      correctKey: result.isSplit ? "SPLIT" : result.winners[0],
-      targetSeconds: 3 + k * 1.5 + (core.requireBoardCards ? 3 : 0),
-    };
-  }
-  throw new Error("Failed to build a hand that reaches the chosen showdown");
-}
-
-/**
- * Plays a legal hand where exactly `showdown` reach the river. Each other player gets a street
- * on which they fold to a bet; showdown players bet whenever a pending folder has nothing to face.
- * Returns null if the script could not be satisfied (caller retries).
- */
-function simulateToShowdown(table: readonly TableSeat[], blinds: BlindStructure, showdown: Set<string>, rng: Rng): TableAction[] | null {
-  const state = new HandState(table, blinds);
-  const unit = blinds.bb / 2;
-  const foldStreet = new Map<string, number>();
-  for (const t of table) if (!showdown.has(t.id)) foldStreet.set(t.id, weightedPick(rng, [{ value: 0, weight: 5 }, { value: 1, weight: 3 }, { value: 2, weight: 2 }, { value: 3, weight: 1 }]));
-
-  const streetIdx = () => STREETS.indexOf(state.street);
-  const pendingFolderNotFacing = () =>
-    state.players.some((p) => !p.folded && !showdown.has(p.id) && foldStreet.get(p.id)! <= streetIdx() && p.street >= state.currentBet);
-  const pendingFolderLeft = () => state.players.some((p) => !p.folded && !showdown.has(p.id) && foldStreet.get(p.id)! <= streetIdx());
-
-  for (let guard = 0; guard < 400; guard++) {
-    const i = state.nextToAct();
-    if (i === -1) {
-      if (state.finished) return null;
-      if (pendingFolderLeft()) return null; // a folder never faced a bet this street
-      if (state.street === "river") break;
-      if (!state.advanceStreet()) return null;
-      continue;
-    }
-    const p = state.players[i];
-    const legal = state.legalActions(i);
-    const has = (t: LegalAction["type"]) => legal.find((l) => l.type === t);
-    const facing = state.currentBet > p.street;
-    const cap = (to: number) => Math.min(to, p.street + p.stack - unit);
-    let action: { type: LegalAction["type"]; to?: number } | null = null;
-
-    if (!showdown.has(p.id)) {
-      const due = foldStreet.get(p.id)! <= streetIdx();
-      if (facing) action = due && has("fold") ? { type: "fold" } : has("call") ? { type: "call" } : null;
-      else action = has("check") ? { type: "check" } : null;
-    } else {
-      const makeBet = () => {
-        const bet = has("bet");
-        const raise = has("raise");
-        if (bet) {
-          const to = Math.max(bet.minTo!, Math.ceil((state.potTotal() * pick(rng, [0.33, 0.5, 0.66, 0.75])) / unit) * unit);
-          return { type: "bet" as const, to: Math.min(cap(to), bet.maxTo!) };
-        }
-        if (raise && state.raisesThisStreet < 2) {
-          const to = Math.max(raise.minTo!, Math.ceil((state.currentBet * pick(rng, [2.5, 3])) / unit) * unit);
-          return { type: "raise" as const, to: Math.min(cap(to), raise.maxTo!) };
-        }
-        return null;
-      };
-      if (pendingFolderNotFacing()) action = makeBet();
-      if (!action && !facing && rng() < 0.25 && state.raisesThisStreet === 0) action = makeBet();
-      if (!action && facing && rng() < 0.08) action = makeBet();
-      if (!action) action = facing ? (has("call") ? { type: "call" } : null) : { type: "check" };
-    }
-    if (!action) return null;
-    if ((action.type === "bet" || action.type === "raise") && (action.to === undefined || action.to <= state.currentBet)) action = facing ? { type: "call" } : { type: "check" };
-    state.apply(i, action);
-  }
-  const alive = state.players.filter((p) => !p.folded).map((p) => p.id);
-  if (alive.length !== showdown.size || alive.some((id) => !showdown.has(id))) return null;
-  if (state.street !== "river") return null;
-  return [...state.log];
-}
-
 /* ------------------------------------------------------------------ */
-/* Betting simulation (POT / SIDE POT)                                */
+/* Hand simulation with GTO-inspired bots (POT / SIDE POT / WINNER)    */
 /* ------------------------------------------------------------------ */
 
 const BLIND_OPTIONS: BlindStructure[] = [
@@ -724,96 +515,106 @@ function pickBlinds(rng: Rng, ante: AnteType = "none"): BlindStructure {
   return { ...b, ante: 0, anteType: "none" };
 }
 
-interface Policy {
-  allowAllIn: boolean;
-  foldFacing: number;
-  callFacing: number;
-  raiseFacing: number;
-  allinFacing: number;
-  betWhenChecked: number;
-  allinWhenChecked: number;
-  maxRaisesPerStreet: number;
-  /** Chip unit for sizing. */
-  unit: number;
-  /** Never let the hand end before this street by everyone folding. */
-  keepTwoUntil: Street;
-}
-
-function roundTo(x: number, unit: number): number {
-  return Math.round(x / unit) * unit;
-}
-
-function chooseAction(state: HandState, index: number, policy: Policy, rng: Rng): { type: LegalAction["type"]; to?: number } {
-  const legal = state.legalActions(index);
-  const has = (t: LegalAction["type"]) => legal.find((l) => l.type === t);
-  const p = state.players[index];
-  const facing = state.currentBet - p.street > 0;
-  const activeCount = state.activePlayers.length;
-  const mustStay = activeCount <= 2 && STREETS.indexOf(state.street) <= STREETS.indexOf(policy.keepTwoUntil);
-  const pot = state.potTotal();
-  const unit = policy.unit;
-
-  // Without all-ins, keep every bet small enough that nobody is forced to shove to continue.
-  const effectiveCap = policy.allowAllIn
-    ? Infinity
-    : Math.min(...state.players.filter((o, j) => j !== index && !o.folded).map((o) => (o.street + o.stack) * 0.5));
-  const withinCap = (to: number) => (to <= effectiveCap ? to : null);
-  const sizeRaise = (rule: LegalAction): number | null => {
-    const mult = state.street === "preflop" ? pick(rng, [2.5, 3, 3.5, 4]) : pick(rng, [2.5, 3, 3.5]);
-    let to = roundTo(state.currentBet * mult, unit);
-    if (state.street !== "preflop" && rng() < 0.4) to = roundTo(state.currentBet + pot * pick(rng, [0.5, 0.75, 1] as const), unit);
-    to = Math.max(to, rule.minTo!);
-    to = Math.ceil(to / unit) * unit;
-    return to <= rule.maxTo! ? withinCap(to) : null;
-  };
-  const sizeBet = (rule: LegalAction): number | null => {
-    let to = roundTo(pot * pick(rng, [0.33, 0.5, 0.66, 0.75, 1] as const), unit);
-    to = Math.max(to, rule.minTo!);
-    to = Math.ceil(to / unit) * unit;
-    return to <= rule.maxTo! ? withinCap(to) : null;
-  };
-
-  const options: { value: () => { type: LegalAction["type"]; to?: number } | null; weight: number }[] = [];
-  const canRaiseMore = state.raisesThisStreet < policy.maxRaisesPerStreet;
-  if (facing) {
-    if (has("fold") && !mustStay) options.push({ value: () => ({ type: "fold" }), weight: policy.foldFacing });
-    if (has("call")) options.push({ value: () => ({ type: "call" }), weight: policy.callFacing });
-    const raise = has("raise");
-    if (raise && canRaiseMore) options.push({ value: () => { const to = sizeRaise(raise); return to ? { type: "raise", to } : null; }, weight: policy.raiseFacing });
-    const allin = has("allin");
-    if (allin && (policy.allowAllIn || !has("call")) && (canRaiseMore || allin.allinTo! <= state.currentBet)) {
-      options.push({ value: () => ({ type: "allin" }), weight: has("call") ? policy.allinFacing : policy.callFacing });
-    }
-  } else {
-    options.push({ value: () => ({ type: "check" }), weight: 1 - policy.betWhenChecked });
-    const bet = has("bet");
-    const raise = has("raise"); // BB option preflop
-    if (bet && canRaiseMore) options.push({ value: () => { const to = sizeBet(bet); return to ? { type: "bet", to } : null; }, weight: policy.betWhenChecked });
-    if (raise && canRaiseMore) options.push({ value: () => { const to = sizeRaise(raise); return to ? { type: "raise", to } : null; }, weight: policy.betWhenChecked * 0.6 });
-    if (has("allin") && policy.allowAllIn && canRaiseMore) options.push({ value: () => ({ type: "allin" }), weight: policy.allinWhenChecked });
-  }
-  for (let i = 0; i < 10; i++) {
-    const chosen = weightedPick(rng, options)();
-    if (chosen) return chosen;
-  }
-  if (has("check")) return { type: "check" };
-  if (has("call")) return { type: "call" };
-  if (has("allin")) return { type: "allin" };
-  return { type: "fold" };
-}
-
-/** Plays betting rounds until `stopAfter` finishes (or the hand ends). */
-function simulate(state: HandState, policy: Policy, rng: Rng, stopAfter: Street): void {
+/**
+ * Every seat gets real hole cards and plays them with the strategy bot until `stopAfter`
+ * finishes (or the hand ends). Returns false if the bot produced an illegal action.
+ */
+function playHand(state: HandState, ctx: BotContext, stopAfter: Street): boolean {
   for (let guard = 0; guard < 500; guard++) {
     const i = state.nextToAct();
     if (i === -1) {
-      if (state.finished || state.street === stopAfter) return;
-      if (!state.advanceStreet()) return;
+      if (state.finished || state.street === stopAfter) return true;
+      if (!state.advanceStreet()) return true;
       continue;
     }
-    state.apply(i, chooseAction(state, i, policy, rng));
+    try {
+      state.apply(i, decide(state, i, ctx));
+    } catch {
+      return false;
+    }
   }
-  throw new Error("Betting simulation did not terminate");
+  return false;
+}
+
+function dealTable(rng: Rng, n: number, dealer?: Dealer): { holes: Card[][]; board: Card[] | null } {
+  const d = dealer ?? freshDealer(rng);
+  const holes = Array.from({ length: n }, () => d.deal(2));
+  return { holes, board: dealer ? null : d.deal(5) };
+}
+
+/* ------------------------------------------------------------------ */
+/* WINNER                                                             */
+/* ------------------------------------------------------------------ */
+
+/**
+ * WINNER: a full table plays a real hand with the strategy bots (each acting on its own
+ * cards). Only hands that reach showdown with the level's number of players are kept.
+ * Board textures (and split boards) come from the level templates.
+ */
+export function generateWinnerScenario(level: Level, opts: GenerateOptions = {}): WinnerScenario {
+  const rng = opts.rng ?? defaultRng;
+  const n = clampPlayers(opts.players, 2, 9) ?? randInt(rng, ...WINNER_PLAYERS[level]);
+  const [kmin, kmax] = WINNER_SHOWDOWN[level].map((k) => Math.min(k, n)) as [number, number];
+  const requireBoardCards = opts.selectBoardCards ?? true;
+  const wantSplit = opts.focus === "split-pot" || rng() < WINNER_SPLIT_RATE;
+  let fallback: WinnerScenario | null = null;
+  let loose: WinnerScenario | null = null;
+
+  for (let attempt = 0; attempt < 2500; attempt++) {
+    const kind: BoardKind = wantSplit ? (attempt > 1200 || rng() < 0.4 ? "broadway-rainbow" : weightedPick(rng, SPLIT_BOARDS)) : weightedPick(rng, WINNER_BOARDS[level]);
+    const { dealer, board } = dealBoardOfKind(rng, kind);
+    const { holes } = dealTable(rng, n, dealer);
+    const blinds = pickBlinds(rng, "none");
+    const positions = positionNames(n);
+    const table: TableSeat[] = positions.map((pos, i) => ({ id: `S${i}`, name: pos, position: pos, stack: randInt(rng, 100, 250) * blinds.bb, hole: holes[i] }));
+    const state = new HandState(table, blinds);
+    const ctx: BotContext = { holes: Object.fromEntries(table.map((t) => [t.id, t.hole])), board, rng, unit: blinds.bb / 2 };
+    if (!playHand(state, ctx, "river")) continue;
+    if (state.street !== "river" || state.nextToAct() !== -1) continue;
+    const alive = state.players.filter((p) => !p.folded);
+    if (alive.length < 2) continue;
+
+    const players: WinnerPlayer[] = alive.map((p) => {
+      const seat = table.find((t) => t.id === p.id)!;
+      return { id: p.id, name: seat.position, hole: seat.hole };
+    });
+    const result = resolveShowdown(board, players);
+    // MVP: a single winner or a complete split among everyone at showdown (no partial splits).
+    if (!(result.winners.length === 1 || result.winners.length === players.length)) continue;
+    if (wantSplit !== result.isSplit) continue;
+    const k = players.length;
+    const skills = winnerSkills(board, players, result);
+    const scenario: WinnerScenario = {
+      id: newId(rng),
+      mode: "winner",
+      level,
+      board,
+      players,
+      table,
+      blinds,
+      actions: [...state.log],
+      result,
+      skills,
+      choices: [...players.map((p) => ({ key: p.id, label: p.name })), { key: "SPLIT", label: "SPLIT" }],
+      correctKey: result.isSplit ? "SPLIT" : result.winners[0],
+      requireBoardCards,
+      targetSeconds: 3 + k * 1.5 + (requireBoardCards ? 3 : 0),
+    };
+    // Split hands are rare in real play: for them any showdown size is fine.
+    if (!wantSplit && (k < kmin || k > kmax)) {
+      loose ??= scenario;
+      continue;
+    }
+    if (opts.focus && opts.focus !== "split-pot" && !skills.includes(opts.focus)) {
+      fallback ??= scenario;
+      continue;
+    }
+    if (opts.focus || wantSplit || winnerAcceptable(level, skills, rng)) return scenario;
+    fallback ??= scenario;
+  }
+  if (fallback) return fallback;
+  if (loose) return loose;
+  throw new Error("Failed to generate winner scenario");
 }
 
 function seatPlayers(n: number, stacks: number[]): SeatedPlayer[] {
@@ -837,31 +638,24 @@ export function generatePotScenario(level: Level, opts: GenerateOptions = {}): P
   const rng = opts.rng ?? defaultRng;
   const cfg = POT_LEVELS[level];
   let fallback: PotScenario | null = null;
-  for (let attempt = 0; attempt < 200; attempt++) {
+  for (let attempt = 0; attempt < 1500; attempt++) {
     const blinds = pickBlinds(rng, opts.ante);
     const unit = blinds.bb / cfg.unitDiv;
     const n = clampPlayers(opts.players, 2, 9) ?? randInt(rng, cfg.players[0], cfg.players[1]);
     const stacks = Array.from({ length: n }, () =>
-      cfg.allIn ? randInt(rng, 15, 150) * blinds.bb + randInt(rng, 0, 3) * unit : randInt(rng, 150, 300) * blinds.bb,
+      cfg.allIn ? randInt(rng, 25, 150) * blinds.bb + randInt(rng, 0, 3) * unit : randInt(rng, 100, 250) * blinds.bb,
     );
     const players = seatPlayers(n, stacks);
+    const { holes, board } = dealTable(rng, n);
     const state = new HandState(players, blinds);
-    const policy: Policy = {
-      allowAllIn: cfg.allIn,
-      foldFacing: 0.4,
-      callFacing: 0.45,
-      raiseFacing: level >= 3 ? 0.2 : 0.12,
-      allinFacing: 0.08,
-      betWhenChecked: 0.45,
-      allinWhenChecked: 0.04,
-      maxRaisesPerStreet: level >= 4 ? 3 : 2,
-      unit,
-      keepTwoUntil: cfg.street,
-    };
-    simulate(state, policy, rng, cfg.street);
+    const ctx: BotContext = { holes: Object.fromEntries(players.map((p, i) => [p.id, holes[i]])), board: board!, rng, unit };
+    if (!playHand(state, ctx, cfg.street)) continue;
     if (state.activePlayers.length < 2) continue;
     const actions = [...state.log];
     const result = calculatePot(players, blinds, actions, { settle: true });
+    if (!cfg.allIn && result.allIn.length > 0) continue;
+    // Multi-street levels should actually see betting on the later streets.
+    if (STREETS.indexOf(result.lastStreet) < STREETS.indexOf(cfg.street) && result.allIn.length === 0) continue;
     const skills: SkillTag[] = [cfg.street === "preflop" ? "pot-preflop" : "pot-multistreet"];
     if (result.allIn.length > 0) skills.push("pot-allin");
     if (result.uncalled) skills.push("uncalled-bet");
@@ -875,6 +669,7 @@ export function generatePotScenario(level: Level, opts: GenerateOptions = {}): P
       blinds,
       actions,
       askStreet: result.lastStreet,
+      holes: ctx.holes,
       result,
       answer: result.total,
       skills,
@@ -894,21 +689,26 @@ export function generatePotScenario(level: Level, opts: GenerateOptions = {}): P
 /* SIDE POT                                                           */
 /* ------------------------------------------------------------------ */
 
-export const SIDEPOT_LEVELS: Record<Level, { players: [number, number]; minPots: number; stopAfter: Street; foldRate: number; needFold: boolean }> = {
-  1: { players: [5, 6], minPots: 2, stopAfter: "preflop", foldRate: 0.4, needFold: false },
-  2: { players: [6, 7], minPots: 2, stopAfter: "preflop", foldRate: 0.35, needFold: false },
-  3: { players: [6, 8], minPots: 3, stopAfter: "preflop", foldRate: 0.3, needFold: true },
-  4: { players: [7, 9], minPots: 3, stopAfter: "river", foldRate: 0.25, needFold: true },
-  5: { players: [8, 9], minPots: 3, stopAfter: "river", foldRate: 0.25, needFold: true },
+export const SIDEPOT_LEVELS: Record<Level, { players: [number, number]; minPots: number; stopAfter: Street; needFold: boolean; stackBB: [number, number] }> = {
+  1: { players: [5, 6], minPots: 2, stopAfter: "preflop", needFold: false, stackBB: [4, 25] },
+  2: { players: [6, 7], minPots: 2, stopAfter: "preflop", needFold: false, stackBB: [4, 30] },
+  3: { players: [6, 8], minPots: 3, stopAfter: "preflop", needFold: true, stackBB: [4, 30] },
+  4: { players: [7, 9], minPots: 3, stopAfter: "river", needFold: true, stackBB: [4, 35] },
+  5: { players: [8, 9], minPots: 3, stopAfter: "river", needFold: true, stackBB: [4, 45] },
 };
 
 const LETTERS = "ABCDEFGHI";
 
+/**
+ * SIDE POT: tournament-style short stacks play with the strategy bots (push / fold when short,
+ * postflop play when deeper). Hands are kept once they create enough pots.
+ */
 export function generateSidePotScenario(level: Level, opts: GenerateOptions = {}): SidePotScenario {
   const rng = opts.rng ?? defaultRng;
   const cfg = SIDEPOT_LEVELS[level];
   let fallback: SidePotScenario | null = null;
-  for (let attempt = 0; attempt < 400; attempt++) {
+  let loose: SidePotScenario | null = null;
+  for (let attempt = 0; attempt < 6000; attempt++) {
     const blinds = pickBlinds(rng, opts.ante);
     const unit = level >= 4 ? blinds.bb / 2 : blinds.bb;
     const n = clampPlayers(opts.players, 3, 9) ?? randInt(rng, cfg.players[0], cfg.players[1]);
@@ -916,31 +716,14 @@ export function generateSidePotScenario(level: Level, opts: GenerateOptions = {}
     const minPots = Math.min(cfg.minPots, n - 1);
     // Distinct stacks so all-ins create different levels.
     const stackSet = new Set<number>();
-    while (stackSet.size < n) stackSet.add(randInt(rng, 8, 90) * blinds.bb + (level >= 4 ? randInt(rng, 0, 1) * unit : 0));
+    while (stackSet.size < n) stackSet.add(randInt(rng, cfg.stackBB[0], cfg.stackBB[1]) * blinds.bb + (level >= 4 ? randInt(rng, 0, 1) * unit : 0));
     const stacks = shuffle([...stackSet], rng);
     const pos = positionNames(n);
     const players: SeatedPlayer[] = stacks.map((stack, i) => ({ id: `S${i}`, name: `Player ${LETTERS[i]}`, position: pos[i], stack }));
+    const { holes, board } = dealTable(rng, n);
     const state = new HandState(players, blinds);
-    const preflopPolicy: Policy = {
-      allowAllIn: true,
-      foldFacing: cfg.foldRate,
-      callFacing: 0.35,
-      raiseFacing: level >= 4 ? 0.15 : 0,
-      allinFacing: 0.6,
-      betWhenChecked: 0.3,
-      allinWhenChecked: 0.3,
-      maxRaisesPerStreet: 6,
-      unit,
-      keepTwoUntil: "river",
-    };
-    if (cfg.stopAfter === "preflop") {
-      simulate(state, preflopPolicy, rng, "preflop");
-    } else {
-      // Preflop shoves, then normal postflop betting between players with chips.
-      simulate(state, preflopPolicy, rng, "preflop");
-      const postPolicy: Policy = { ...preflopPolicy, foldFacing: 0.3, callFacing: 0.45, raiseFacing: 0.1, allinFacing: 0.15, betWhenChecked: 0.5, allinWhenChecked: 0.1, maxRaisesPerStreet: 2 };
-      if (!state.finished && state.advanceStreet()) simulate(state, postPolicy, rng, "river");
-    }
+    const ctx: BotContext = { holes: Object.fromEntries(players.map((p, i) => [p.id, holes[i]])), board: board!, rng, unit };
+    if (!playHand(state, ctx, cfg.stopAfter)) continue;
     const actions = [...state.log];
     const potResult = calculatePot(players, blinds, actions, { settle: false });
     // Antes are dead money in the main pot; side pots are cut from betting contributions only.
@@ -948,9 +731,8 @@ export function generateSidePotScenario(level: Level, opts: GenerateOptions = {}
       players.map((p) => ({ playerId: p.id, amount: potResult.betContributions[p.id], folded: potResult.folded.includes(p.id) })),
       { deadMoney: potResult.anteTotal },
     );
-    if (pots.pots.length < minPots) continue;
+    if (pots.pots.length < 2) continue;
     const foldedContribution = potResult.folded.some((id) => potResult.betContributions[id] > 0);
-    if (cfg.needFold && !foldedContribution && rng() < 0.7) continue;
     const skills: SkillTag[] = ["side-pot"];
     if (pots.pots.length >= 3) skills.push("multiple-side-pots");
     if (foldedContribution) skills.push("folded-contribution");
@@ -969,11 +751,16 @@ export function generateSidePotScenario(level: Level, opts: GenerateOptions = {}
       blinds,
       actions,
       potResult,
+      holes: ctx.holes,
       pots,
       questions,
       skills,
       targetSeconds: 4 + questions.length * 5,
     };
+    if (pots.pots.length < minPots || (cfg.needFold && !foldedContribution && rng() < 0.7)) {
+      loose ??= scenario;
+      continue;
+    }
     if (opts.focus && !skills.includes(opts.focus)) {
       fallback ??= scenario;
       continue;
@@ -981,6 +768,7 @@ export function generateSidePotScenario(level: Level, opts: GenerateOptions = {}
     return scenario;
   }
   if (fallback) return fallback;
+  if (loose) return loose;
   throw new Error("Failed to generate side pot scenario");
 }
 

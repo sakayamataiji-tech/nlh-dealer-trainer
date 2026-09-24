@@ -69,6 +69,8 @@ export interface PotScenario extends BaseScenario {
   blinds: BlindStructure;
   actions: TableAction[];
   askStreet: Street;
+  /** Hidden hole cards the bots played (not shown while answering). */
+  holes: Record<string, Card[]>;
   /** Derived from potCalculator. */
   result: PotResult;
   answer: number;
@@ -86,6 +88,8 @@ export interface SidePotScenario extends BaseScenario {
   blinds: BlindStructure;
   actions: TableAction[];
   potResult: PotResult;
+  /** Hidden hole cards the bots played. */
+  holes: Record<string, Card[]>;
   /** Derived from sidePotCalculator. */
   pots: SidePotResult;
   questions: NumericQuestion[];

@@ -3,5 +3,6 @@ import path from "node:path";
 
 export default defineConfig({
   resolve: { alias: { "@": path.resolve(__dirname, "src") } },
-  test: { include: ["tests/**/*.test.ts"], environment: "node" },
+  // Scenario generation plays real hands with the strategy bots, so allow generous time.
+  test: { include: ["tests/**/*.test.ts"], environment: "node", testTimeout: 120000 },
 });

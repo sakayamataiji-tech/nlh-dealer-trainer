@@ -25,7 +25,7 @@ import type { ModeViewProps } from "./types";
  */
 export function WinnerMode({ scenario, answered, onAnswer, verdict, startTimer }: ModeViewProps<WinnerScenario>) {
   const speed = usePlaybackSpeed();
-  const frames = useMemo(() => buildPlaybackFrames(scenario.table, scenario.blinds, scenario.actions), [scenario]);
+  const frames = useMemo(() => buildPlaybackFrames(scenario.table, scenario.blinds, scenario.actions, { runoutTo: "river" }), [scenario]);
   const { frame, prev, done, skip, replay } = usePlayback(frames, speed);
   useEffect(() => {
     if (done) startTimer();

@@ -33,7 +33,12 @@ export interface PlaybackFrame {
 
 const BOARD_COUNT: Record<Street, number> = { preflop: 0, flop: 3, turn: 4, river: 5 };
 
-export function buildPlaybackFrames(players: readonly TablePlayer[], _blinds: BlindStructure, actions: readonly TableAction[]): PlaybackFrame[] {
+export function buildPlaybackFrames(
+  players: readonly TablePlayer[],
+  _blinds: BlindStructure,
+  actions: readonly TableAction[],
+  opts: { runoutTo?: Street } = {},
+): PlaybackFrame[] {
   const stack: Record<string, number> = Object.fromEntries(players.map((p) => [p.id, p.stack]));
   let fronts: Record<string, number> = Object.fromEntries(players.map((p) => [p.id, 0]));
   let frontChips: Record<string, ChipCounts> = Object.fromEntries(players.map((p) => [p.id, {}]));
@@ -145,6 +150,14 @@ export function buildPlaybackFrames(players: readonly TablePlayer[], _blinds: Bl
   }
   // End of the asked street: return any uncalled chips; the last street's bets stay in front.
   returnUncalled();
+  // All-in before the river: deal the remaining streets (run it out) when asked to.
+  if (opts.runoutTo) {
+    while (STREETS.indexOf(street) < STREETS.indexOf(opts.runoutTo)) {
+      collect();
+      street = STREETS[STREETS.indexOf(street) + 1];
+      snapshot("deal");
+    }
+  }
   return frames;
 }
 
