@@ -2,10 +2,9 @@
 import { useEffect, useMemo, useState } from "react";
 import { FastForward, RotateCcw } from "lucide-react";
 import type { PotScenario } from "@/engine/scenarioTypes";
-import { DENOMINATIONS, type ChipCounts, type Denomination } from "@/engine/chips";
 import { buildPlaybackFrames } from "@/engine/playback";
 import { PokerTable } from "@/components/PokerTable";
-import { ChipLegend, ChipPile } from "@/components/ChipPile";
+import { BetBadge } from "@/components/Chips";
 import { CardBack } from "@/components/PlayingCard";
 import { NumberInput } from "@/components/NumberInput";
 import { Button } from "@/components/ui/button";
@@ -46,15 +45,6 @@ export function PotMode({ scenario, answered, onAnswer, verdict, startTimer }: M
   const user = answered?.answer.mode === "pot" ? answered.answer.amount : null;
   const many = scenario.players.length >= 7;
 
-  const denomsInPlay = useMemo(() => {
-    const set = new Set<Denomination>();
-    const add = (c: ChipCounts) => DENOMINATIONS.forEach((d) => c[d] && set.add(d));
-    for (const f of frames) {
-      add(f.potChips);
-      Object.values(f.frontChips).forEach(add);
-    }
-    return [...set];
-  }, [frames]);
 
   const table = (
     <PokerTable
@@ -72,7 +62,13 @@ export function PotMode({ scenario, answered, onAnswer, verdict, startTimer }: M
               </div>
             )}
           </div>
-          {view.pot > 0 ? <ChipPile counts={view.potChips} size={many ? "md" : "lg"} className="max-w-[16rem]" /> : <div className="h-6" />}
+          {/* The collected pot stays hidden: tracking it through the streets is the exercise. */}
+          {view.pot > 0 && !answered && (
+            <div className="flex items-center gap-1.5 rounded-full border border-brass-dim/60 bg-ink/80 px-3 py-0.5 text-sm font-bold">
+              <span className="text-[10px] tracking-[0.2em] text-muted">POT</span>
+              <span className="text-brass">?</span>
+            </div>
+          )}
           {answered && <div className="rounded bg-black/40 px-2 text-sm font-bold tabular text-brass">POT {formatChips(scenario.answer)}</div>}
         </div>
       }
@@ -106,18 +102,14 @@ export function PotMode({ scenario, answered, onAnswer, verdict, startTimer }: M
           </div>
         );
       })}
-      bets={scenario.players.map((p) => (view.fronts[p.id] > 0 ? <ChipPile counts={view.frontChips[p.id]} size={many ? "md" : "lg"} /> : null))}
+      bets={scenario.players.map((p) => (view.fronts[p.id] > 0 ? <BetBadge amount={view.fronts[p.id]} size={many ? "sm" : "md"} /> : null))}
     />
   );
 
   const panel = (
     <>
       <Panel className="p-3 sm:p-4">
-        <div className="flex flex-wrap items-center justify-between gap-2">
-          <Label>Chips</Label>
-          <ChipLegend denoms={denomsInPlay} />
-        </div>
-        <div className="mt-3 flex items-center gap-2">
+        <div className="flex items-center gap-2">
           {!done ? (
             <Button size="sm" variant="secondary" onClick={skip}>
               <FastForward className="h-4 w-4" /> SKIP
@@ -142,7 +134,7 @@ export function PotMode({ scenario, answered, onAnswer, verdict, startTimer }: M
         </div>
       </Panel>
       <Panel className="p-3 sm:p-4">
-        <Question sub={done ? `LEVEL ${scenario.level} · ${STREET_LABEL[scenario.askStreet]} 終了時点（場のチップ＝ポット＋各自の前のチップ）` : "アクション再生中… 終わったら計測開始"}>
+        <Question sub={done ? `LEVEL ${scenario.level} · ${STREET_LABEL[scenario.askStreet]} 終了時点（集めたポット＋各自の前のベット）` : "アクション再生中… 終わったら計測開始"}>
           POTはいくら？
         </Question>
         {!answered && (

@@ -1,11 +1,9 @@
 "use client";
-import { useMemo, useState } from "react";
-import { addCounts, breakdown, DENOMINATIONS, type ChipCounts, type Denomination } from "@/engine/chips";
-import { ChipLegend, ChipPile } from "@/components/ChipPile";
+import { useState } from "react";
 import { Check, X } from "lucide-react";
 import type { SidePotScenario } from "@/engine/scenarioTypes";
 import { PokerTable } from "@/components/PokerTable";
-import { ChipAmount } from "@/components/Chips";
+import { BetBadge, ChipAmount } from "@/components/Chips";
 import { NumberInput } from "@/components/NumberInput";
 import { Panel, Label } from "@/components/ui/panel";
 import { cn, formatChips } from "@/lib/utils";
@@ -33,20 +31,6 @@ export function SidePotMode({ scenario, answered, onAnswer, verdict }: ModeViewP
   };
 
   const many = scenario.players.length >= 5;
-  // Bets are shown only as chips in front of each player; antes as a pile in the middle.
-  const betChips = useMemo(
-    () => Object.fromEntries(scenario.players.map((p) => [p.id, breakdown(pr.betContributions[p.id])])) as Record<string, ChipCounts>,
-    [scenario, pr],
-  );
-  const anteChips = useMemo(
-    () => scenario.players.reduce<ChipCounts>((acc, p) => (pr.antes[p.id] ? addCounts(acc, breakdown(pr.antes[p.id])) : acc), {}),
-    [scenario, pr],
-  );
-  const denoms = useMemo(() => {
-    const set = new Set<Denomination>();
-    for (const c of [...Object.values(betChips), anteChips]) DENOMINATIONS.forEach((d) => c[d] && set.add(d));
-    return [...set];
-  }, [betChips, anteChips]);
   const table = (
     <PokerTable
       hideMobileFelt={!answered && pr.anteTotal === 0}
@@ -61,10 +45,7 @@ export function SidePotMode({ scenario, answered, onAnswer, verdict }: ModeViewP
             </div>
           ) : (
             pr.anteTotal > 0 && (
-              <div className="flex items-end gap-2">
-                <span className="text-[10px] font-bold tracking-[0.2em] text-text/70">ANTE</span>
-                <ChipPile counts={anteChips} size="md" />
-              </div>
+              <BetBadge amount={pr.anteTotal} label="ANTE" tone="muted" />
             )
           )}
         </div>
@@ -81,18 +62,14 @@ export function SidePotMode({ scenario, answered, onAnswer, verdict }: ModeViewP
           </div>
         );
       })}
-      bets={scenario.players.map((p) => (pr.betContributions[p.id] > 0 ? <ChipPile counts={betChips[p.id]} size={scenario.players.length >= 7 ? "md" : "lg"} /> : null))}
+      bets={scenario.players.map((p) => (pr.betContributions[p.id] > 0 ? <BetBadge amount={pr.betContributions[p.id]} size={scenario.players.length >= 7 ? "sm" : "md"} /> : null))}
     />
   );
 
   const panel = (
     <>
       <Panel className="p-3 sm:p-4">
-        <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
-          <Label>Chips</Label>
-          <ChipLegend denoms={denoms} />
-        </div>
-        <Question sub={`LEVEL ${scenario.level} · 各プレイヤーの前のチップ = そのハンドのベット総額${pr.anteTotal > 0 ? "（中央のアンティはメインポットへ）" : ""}`}>{q && !answered ? `${q.label} はいくら？` : "SIDE POT"}</Question>
+        <Question sub={`LEVEL ${scenario.level} · 各プレイヤーの前の金額 = そのハンドのベット総額${pr.anteTotal > 0 ? "（中央のアンティはメインポットへ）" : ""}`}>{q && !answered ? `${q.label} はいくら？` : "SIDE POT"}</Question>
         {!answered && (
           <>
             <div className="mt-2 flex flex-wrap gap-1.5">

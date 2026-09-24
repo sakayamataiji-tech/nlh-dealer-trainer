@@ -35,7 +35,7 @@ answer is always recomputed by the evaluator / calculators.
 
 Conventions: bet/raise amounts are **"to"** amounts (the player's total on that street).
 
-Bets are never shown as text while answering: POT replays the hand on the table (chips pushed in front of each player, collected into the pot at the end of each street; the answer timer starts when the playback ends), and SIDE POT shows each player's bet as chip stacks. Chip colours: 25 green, 100 black, 500 purple, 1K yellow, 5K red, 25K blue, 100K orange (`src/engine/chips.ts`, `src/engine/playback.ts`).
+Bets are shown on the table, not in a text log: POT replays the hand (each player's bet appears in front of them, bets are collected into a hidden pot at the end of each street, uncalled bets are returned; the answer timer starts when the playback ends), and SIDE POT shows each player's total bet in front of them. The text action log with amounts is only available after answering (`src/engine/playback.ts`).
 
 Settings (training setup screen): player count (AUTO by level, or fixed 2–9), ante (none / BB ante = 1 BB / everyone = 1/8 BB — antes are dead money added to the main pot), and the WINNER board-card step (after choosing the winner, push up the community cards that play; any equivalent selection is accepted).
 
