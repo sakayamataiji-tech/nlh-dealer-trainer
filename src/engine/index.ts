@@ -13,3 +13,5 @@ export * from "./scenarioTypes";
 export * from "./scenarioGenerator";
 export * from "./grading";
 export * from "./boardSelection";
+export * from "./chips";
+export * from "./playback";

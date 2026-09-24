@@ -49,8 +49,10 @@ export function TrainingSession({ modeKey }: { modeKey: SessionModeKey }) {
     window.scrollTo({ top: 0 });
     setScenario(s);
     setAnswered(null);
-    setStartedAt(performance.now());
+    // POT: the timer starts when the action playback has finished.
+    setStartedAt(s.mode === "pot" ? null : performance.now());
   }, []);
+  const startTimer = useCallback(() => setStartedAt((t) => t ?? performance.now()), []);
 
   const start = useCallback(() => {
     session.current = { id: uid(), startedAt: Date.now(), length };
@@ -259,6 +261,7 @@ export function TrainingSession({ modeKey }: { modeKey: SessionModeKey }) {
             scenario,
             answered,
             onAnswer,
+            startTimer,
             answered ? <Verdict answered={answered} onNext={next} nextLabel={isLast ? "RESULT" : "NEXT"} /> : null,
           )}
           <div className="text-center text-xs text-muted tabular">
@@ -272,16 +275,17 @@ export function TrainingSession({ modeKey }: { modeKey: SessionModeKey }) {
   );
 }
 
-function renderMode(s: Scenario, answered: AnsweredState | null, onAnswer: (a: UserAnswer) => void, verdict: React.ReactNode) {
+function renderMode(s: Scenario, answered: AnsweredState | null, onAnswer: (a: UserAnswer) => void, startTimer: () => void, verdict: React.ReactNode) {
+  const common = { answered, onAnswer, startTimer, verdict };
   switch (s.mode) {
     case "hand":
-      return <HandMode key={s.id} scenario={s} answered={answered} onAnswer={onAnswer} verdict={verdict} />;
+      return <HandMode key={s.id} scenario={s} {...common} />;
     case "winner":
-      return <WinnerMode key={s.id} scenario={s} answered={answered} onAnswer={onAnswer} verdict={verdict} />;
+      return <WinnerMode key={s.id} scenario={s} {...common} />;
     case "pot":
-      return <PotMode key={s.id} scenario={s} answered={answered} onAnswer={onAnswer} verdict={verdict} />;
+      return <PotMode key={s.id} scenario={s} {...common} />;
     case "sidepot":
-      return <SidePotMode key={s.id} scenario={s} answered={answered} onAnswer={onAnswer} verdict={verdict} />;
+      return <SidePotMode key={s.id} scenario={s} {...common} />;
   }
 }
 

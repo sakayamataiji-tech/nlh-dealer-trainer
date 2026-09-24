@@ -16,4 +16,6 @@ export interface ModeViewProps<S extends Scenario> {
   onAnswer: (a: UserAnswer) => void;
   /** Verdict + NEXT controls rendered by the session, shown once answered. */
   verdict: ReactNode;
+  /** Modes with an intro (POT playback) start the answer timer themselves. */
+  startTimer: () => void;
 }

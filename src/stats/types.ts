@@ -64,6 +64,8 @@ export interface StatsData {
     players: Record<PlayerSettingMode, PlayerSetting>;
     /** WINNER: also pick the board cards that play. */
     selectBoardCards: boolean;
+    /** POT: action playback speed multiplier. */
+    playbackSpeed: 1 | 2 | 3;
   };
   records: AnswerRecord[];
   streak: { current: number; best: number };
@@ -84,6 +86,7 @@ export function emptyStats(): StatsData {
       ante: "none",
       players: { winner: "auto", pot: "auto", sidepot: "auto" },
       selectBoardCards: true,
+      playbackSpeed: 1,
     },
     records: [],
     streak: { current: 0, best: 0 },

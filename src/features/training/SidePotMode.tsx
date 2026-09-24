@@ -1,5 +1,7 @@
 "use client";
-import { useState } from "react";
+import { useMemo, useState } from "react";
+import { addCounts, breakdown, DENOMINATIONS, type ChipCounts, type Denomination } from "@/engine/chips";
+import { ChipLegend, ChipPile } from "@/components/ChipPile";
 import { Check, X } from "lucide-react";
 import type { SidePotScenario } from "@/engine/scenarioTypes";
 import { PokerTable } from "@/components/PokerTable";
@@ -31,9 +33,23 @@ export function SidePotMode({ scenario, answered, onAnswer, verdict }: ModeViewP
   };
 
   const many = scenario.players.length >= 5;
+  // Bets are shown only as chips in front of each player; antes as a pile in the middle.
+  const betChips = useMemo(
+    () => Object.fromEntries(scenario.players.map((p) => [p.id, breakdown(pr.betContributions[p.id])])) as Record<string, ChipCounts>,
+    [scenario, pr],
+  );
+  const anteChips = useMemo(
+    () => scenario.players.reduce<ChipCounts>((acc, p) => (pr.antes[p.id] ? addCounts(acc, breakdown(pr.antes[p.id])) : acc), {}),
+    [scenario, pr],
+  );
+  const denoms = useMemo(() => {
+    const set = new Set<Denomination>();
+    for (const c of [...Object.values(betChips), anteChips]) DENOMINATIONS.forEach((d) => c[d] && set.add(d));
+    return [...set];
+  }, [betChips, anteChips]);
   const table = (
     <PokerTable
-      hideMobileFelt={!answered}
+      hideMobileFelt={!answered && pr.anteTotal === 0}
       center={
         <div className="flex flex-col items-center gap-1 text-center">
           <Label className="text-felt-line">{answered ? "POTS" : "SIDE POT"}</Label>
@@ -44,12 +60,12 @@ export function SidePotMode({ scenario, answered, onAnswer, verdict }: ModeViewP
               ))}
             </div>
           ) : (
-            <>
-              <div className="text-xs text-text/70">
-                Blinds {formatChips(scenario.blinds.sb)} / {formatChips(scenario.blinds.bb)}
+            pr.anteTotal > 0 && (
+              <div className="flex items-end gap-2">
+                <span className="text-[10px] font-bold tracking-[0.2em] text-text/70">ANTE</span>
+                <ChipPile counts={anteChips} size="md" />
               </div>
-              {pr.anteTotal > 0 && <ChipAmount amount={pr.anteTotal} label="ANTE" tone="muted" />}
-            </>
+            )
           )}
         </div>
       }
@@ -62,17 +78,21 @@ export function SidePotMode({ scenario, answered, onAnswer, verdict }: ModeViewP
               {p.name} <span className="font-normal text-muted">{p.position}</span>
             </div>
             <div className={cn("text-[10px] font-black tracking-[0.2em]", status === "ALL-IN" ? "text-bad" : status === "FOLD" ? "text-muted" : "text-text/80")}>{status}</div>
-            <div className={cn("font-bold tabular", many ? "text-sm" : "text-base sm:text-lg")}>{formatChips(pr.betContributions[p.id])}</div>
           </div>
         );
       })}
+      bets={scenario.players.map((p) => (pr.betContributions[p.id] > 0 ? <ChipPile counts={betChips[p.id]} size={scenario.players.length >= 7 ? "md" : "lg"} /> : null))}
     />
   );
 
   const panel = (
     <>
       <Panel className="p-3 sm:p-4">
-        <Question sub={`LEVEL ${scenario.level} · 各プレイヤーの数字 = ベット総額${pr.anteTotal > 0 ? "（アンティ除く・アンティはメインポットへ）" : ""}`}>{q && !answered ? `${q.label} はいくら？` : "SIDE POT"}</Question>
+        <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+          <Label>Chips</Label>
+          <ChipLegend denoms={denoms} />
+        </div>
+        <Question sub={`LEVEL ${scenario.level} · 各プレイヤーの前のチップ = そのハンドのベット総額${pr.anteTotal > 0 ? "（中央のアンティはメインポットへ）" : ""}`}>{q && !answered ? `${q.label} はいくら？` : "SIDE POT"}</Question>
         {!answered && (
           <>
             <div className="mt-2 flex flex-wrap gap-1.5">
@@ -88,10 +108,12 @@ export function SidePotMode({ scenario, answered, onAnswer, verdict }: ModeViewP
             </div>
           </>
         )}
-        <button type="button" className="mt-2 text-xs text-muted underline-offset-2 hover:underline" onClick={() => setShowLog((v) => !v)}>
-          {showLog ? "ACTION LOG を隠す" : "ACTION LOG を表示"}
-        </button>
-        {showLog && (
+        {answered && (
+          <button type="button" className="mt-2 text-xs text-muted underline-offset-2 hover:underline" onClick={() => setShowLog((v) => !v)}>
+            {showLog ? "ACTION LOG を隠す" : "ACTION LOG（金額つき）を表示"}
+          </button>
+        )}
+        {answered && showLog && (
           <div className="mt-1 max-h-48 overflow-auto">
             <ActionLog actions={scenario.actions} nameOf={nameOf} dense />
           </div>

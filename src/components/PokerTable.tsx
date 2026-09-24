@@ -5,7 +5,25 @@ import { cn } from "@/lib/utils";
  * Oval table seen from the dealer's chair: the dealer (user) sits at the bottom centre,
  * players are placed along the far arc. Seat content is provided by the caller.
  */
-export function PokerTable({ center, seats, className, compact = false, hideMobileFelt = false }: { center: ReactNode; seats: ReactNode[]; className?: string; compact?: boolean; hideMobileFelt?: boolean }) {
+export function PokerTable({
+  center,
+  seats,
+  bets,
+  collecting = false,
+  className,
+  compact = false,
+  hideMobileFelt = false,
+}: {
+  center: ReactNode;
+  seats: ReactNode[];
+  /** Chips in front of each seat (between the seat and the pot). */
+  bets?: (ReactNode | null)[];
+  /** Animate the bets sliding into the pot. */
+  collecting?: boolean;
+  className?: string;
+  compact?: boolean;
+  hideMobileFelt?: boolean;
+}) {
   const n = seats.length;
   const positions = seatPositions(n);
   const mobileCols = n === 1 ? "grid-cols-1" : n === 2 || n === 4 ? "grid-cols-2" : "grid-cols-3";
@@ -13,7 +31,14 @@ export function PokerTable({ center, seats, className, compact = false, hideMobi
     <>
       {/* Phones: players across the table in a grid, felt with the board below, dealer at the bottom. */}
       <div className={cn("flex w-full flex-col gap-2 sm:hidden", className)}>
-        <div className={cn("grid place-items-center gap-2", mobileCols)}>{seats}</div>
+        <div className={cn("grid place-items-center gap-2", mobileCols)}>
+          {seats.map((seat, i) => (
+            <div key={i} className="flex flex-col items-center gap-1">
+              {seat}
+              {bets?.[i] && <div className={cn("transition-all duration-500", collecting && "translate-y-6 opacity-0")}>{bets[i]}</div>}
+            </div>
+          ))}
+        </div>
         {!hideMobileFelt && (
         <div className="felt flex min-h-16 flex-col items-center justify-center gap-1.5 rounded-[2rem] border-4 border-rail px-2 py-2.5 shadow-[0_0_0_1px_#3a2718]">{center}</div>
         )}
@@ -29,6 +54,22 @@ export function PokerTable({ center, seats, className, compact = false, hideMobi
           {seat}
         </div>
       ))}
+      {bets?.map((bet, i) => {
+        if (!bet) return null;
+        // In front of the seat: 40% of the way towards the pot; slides to the pot when collecting.
+        const t = collecting ? 1 : 0.4;
+        const x = positions[i].x + (50 - positions[i].x) * t;
+        const y = positions[i].y + (50 - positions[i].y) * t;
+        return (
+          <div
+            key={`b${i}`}
+            className={cn("absolute -translate-x-1/2 -translate-y-1/2 transition-all duration-500 ease-in", collecting && "opacity-0")}
+            style={{ left: `${x}%`, top: `${y}%` }}
+          >
+            {bet}
+          </div>
+        );
+      })}
       <div className="absolute bottom-[1%] left-1/2 flex -translate-x-1/2 items-center gap-1.5 rounded-full border border-brass-dim/60 bg-ink/80 px-3 py-0.5 text-[10px] font-bold tracking-[0.25em] text-brass">
         DEALER
       </div>
