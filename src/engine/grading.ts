@@ -5,7 +5,7 @@ import { isValidBoardSelection } from "./boardSelection";
 
 /** User answers per mode. */
 export type UserAnswer =
-  | { mode: "hand"; category: HandCategory }
+  | { mode: "hand"; category: HandCategory; boardCards?: Card[] }
   | { mode: "winner"; key: string; boardCards?: Card[] }
   | { mode: "pot"; amount: number }
   | { mode: "sidepot"; amounts: Record<string, number> };
@@ -20,8 +20,13 @@ export interface GradeResult {
 export function gradeAnswer(scenario: Scenario, answer: UserAnswer): GradeResult {
   if (scenario.mode !== answer.mode) throw new Error("Answer mode mismatch");
   switch (scenario.mode) {
-    case "hand":
-      return { correct: scenario.hand.category === (answer as { category: HandCategory }).category };
+    case "hand": {
+      const a = answer as { category: HandCategory; boardCards?: Card[] };
+      const categoryOk = scenario.hand.category === a.category;
+      if (!scenario.requireBoardCards) return { correct: categoryOk, parts: { category: categoryOk } };
+      const cardsOk = !!a.boardCards && isValidBoardSelection(scenario.board, scenario.hole, scenario.hand, a.boardCards);
+      return { correct: categoryOk && cardsOk, parts: { category: categoryOk, cards: cardsOk } };
+    }
     case "winner": {
       const a = answer as { key: string; boardCards?: Card[] };
       const winnerOk = scenario.correctKey === a.key;

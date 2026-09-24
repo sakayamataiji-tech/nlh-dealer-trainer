@@ -37,7 +37,7 @@ Conventions: bet/raise amounts are **"to"** amounts (the player's total on that 
 
 Bets are shown on the table, not in a text log: POT replays the hand (each player's bet appears in front of them, bets are collected into a hidden pot at the end of each street, uncalled bets are returned; the answer timer starts when the playback ends), and SIDE POT shows each player's total bet in front of them. The text action log with amounts is only available after answering (`src/engine/playback.ts`).
 
-Settings (training setup screen): player count (AUTO by level, or fixed 2–9), ante (none / BB ante = 1 BB / everyone = 1/8 BB — antes are dead money added to the main pot), and the WINNER board-card step (after choosing the winner, push up the community cards that play; any equivalent selection is accepted).
+Settings (training setup screen): player count (AUTO by level, or fixed 2–9), ante (none / BB ante = 1 BB / everyone = 1/8 BB — antes are dead money added to the main pot), and the board-card step for HAND READING and WINNER (after naming the hand or the winner, push up the community cards that play; any equivalent selection is accepted).
 
 Storage: `StatsRepository` (LocalStorage implementation) holds a single versioned document (`schemaVersion: 1`); swapping in a Supabase repository only requires implementing `load/save/clear`.
 

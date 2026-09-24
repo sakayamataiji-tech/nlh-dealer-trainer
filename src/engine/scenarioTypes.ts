@@ -27,6 +27,8 @@ export interface HandScenario extends BaseScenario {
   /** Derived from handEvaluator. */
   hand: EvaluatedHand;
   choices: HandCategory[];
+  /** Second step: push up the board cards that play in the hand. */
+  requireBoardCards: boolean;
 }
 
 export interface WinnerPlayer {

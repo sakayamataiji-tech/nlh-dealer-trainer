@@ -38,7 +38,7 @@ export interface GenerateOptions {
   players?: number;
   /** Ante format for POT / SIDE POT. Default "none". */
   ante?: AnteType;
-  /** WINNER: also ask which board cards play in the winning hand. Default true. */
+  /** HAND / WINNER: also ask which board cards play in the hand. Default true. */
   selectBoardCards?: boolean;
 }
 
@@ -294,6 +294,7 @@ export function generateHandScenario(level: Level, opts: GenerateOptions = {}): 
   const deal = dealForHandPattern(rng, pattern);
   // The answer is derived from the evaluator — never from `pattern`.
   const hand = evaluatePlayer(deal.hole, deal.board);
+  const requireBoardCards = opts.selectBoardCards ?? true;
   return {
     id: newId(rng),
     mode: "hand",
@@ -303,7 +304,8 @@ export function generateHandScenario(level: Level, opts: GenerateOptions = {}): 
     hand,
     skills: handSkills(deal, hand),
     choices: [...CATEGORY_ORDER],
-    targetSeconds: 4 + (level - 1) * 0.75,
+    requireBoardCards,
+    targetSeconds: 4 + (level - 1) * 0.75 + (requireBoardCards ? 3 : 0),
   };
 }
 
@@ -355,10 +357,10 @@ const PLAYER_NAMES = Array.from({ length: 9 }, (_, i) => `PLAYER ${i + 1}`);
 
 /** Default WINNER player count by level (a fixed count can be chosen in settings). */
 export const WINNER_PLAYERS: Record<Level, [number, number]> = {
-  1: [2, 2],
-  2: [3, 3],
-  3: [4, 5],
-  4: [6, 7],
+  1: [4, 5],
+  2: [5, 6],
+  3: [6, 7],
+  4: [7, 8],
   5: [8, 9],
 };
 
@@ -691,11 +693,11 @@ function seatPlayers(n: number, stacks: number[]): SeatedPlayer[] {
 /* ------------------------------------------------------------------ */
 
 export const POT_LEVELS: Record<Level, { players: [number, number]; street: Street; allIn: boolean; unitDiv: number }> = {
-  1: { players: [2, 5], street: "preflop", allIn: false, unitDiv: 2 },
-  2: { players: [3, 6], street: "flop", allIn: false, unitDiv: 2 },
-  3: { players: [4, 7], street: "turn", allIn: false, unitDiv: 2 },
-  4: { players: [5, 9], street: "river", allIn: false, unitDiv: 4 },
-  5: { players: [6, 9], street: "river", allIn: true, unitDiv: 4 },
+  1: { players: [6, 9], street: "preflop", allIn: false, unitDiv: 2 },
+  2: { players: [6, 9], street: "flop", allIn: false, unitDiv: 2 },
+  3: { players: [6, 9], street: "turn", allIn: false, unitDiv: 2 },
+  4: { players: [7, 9], street: "river", allIn: false, unitDiv: 4 },
+  5: { players: [8, 9], street: "river", allIn: true, unitDiv: 4 },
 };
 
 export function generatePotScenario(level: Level, opts: GenerateOptions = {}): PotScenario {
@@ -760,11 +762,11 @@ export function generatePotScenario(level: Level, opts: GenerateOptions = {}): P
 /* ------------------------------------------------------------------ */
 
 export const SIDEPOT_LEVELS: Record<Level, { players: [number, number]; minPots: number; stopAfter: Street; foldRate: number; needFold: boolean }> = {
-  1: { players: [3, 3], minPots: 2, stopAfter: "preflop", foldRate: 0, needFold: false },
-  2: { players: [3, 5], minPots: 2, stopAfter: "preflop", foldRate: 0.15, needFold: false },
-  3: { players: [4, 6], minPots: 3, stopAfter: "preflop", foldRate: 0.2, needFold: true },
-  4: { players: [5, 8], minPots: 3, stopAfter: "river", foldRate: 0.2, needFold: true },
-  5: { players: [6, 9], minPots: 3, stopAfter: "river", foldRate: 0.25, needFold: true },
+  1: { players: [5, 6], minPots: 2, stopAfter: "preflop", foldRate: 0.4, needFold: false },
+  2: { players: [6, 7], minPots: 2, stopAfter: "preflop", foldRate: 0.35, needFold: false },
+  3: { players: [6, 8], minPots: 3, stopAfter: "preflop", foldRate: 0.3, needFold: true },
+  4: { players: [7, 9], minPots: 3, stopAfter: "river", foldRate: 0.25, needFold: true },
+  5: { players: [8, 9], minPots: 3, stopAfter: "river", foldRate: 0.25, needFold: true },
 };
 
 const LETTERS = "ABCDEFGHI";

@@ -9,9 +9,15 @@ describe("grading", () => {
   const rng = seededRng(55);
   it("hand: correct only for the evaluator category", () => {
     const s = generateHandScenario(3, { rng });
-    expect(gradeAnswer(s, { mode: "hand", category: s.hand.category }).correct).toBe(true);
+    const used = boardCardsInBestFive(s.board, s.hand);
+    expect(gradeAnswer(s, { mode: "hand", category: s.hand.category, boardCards: used }).correct).toBe(true);
+    // Right hand, board cards missing → incorrect overall (hand part still correct).
+    expect(gradeAnswer(s, { mode: "hand", category: s.hand.category }).parts).toEqual({ category: true, cards: false });
     const wrong = s.hand.category === HandCategory.HighCard ? HandCategory.OnePair : HandCategory.HighCard;
-    expect(gradeAnswer(s, { mode: "hand", category: wrong }).correct).toBe(false);
+    expect(gradeAnswer(s, { mode: "hand", category: wrong, boardCards: used }).correct).toBe(false);
+    // Card step disabled: category only.
+    const s2 = generateHandScenario(3, { rng, selectBoardCards: false });
+    expect(gradeAnswer(s2, { mode: "hand", category: s2.hand.category }).correct).toBe(true);
   });
   it("winner / pot / side pot", () => {
     const w = generateWinnerScenario(3, { rng });

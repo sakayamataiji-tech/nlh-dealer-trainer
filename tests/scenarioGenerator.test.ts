@@ -167,6 +167,16 @@ describe("scenarioGenerator: player count, ante and board-card selection", () =>
       }
     }
   });
+  it("HAND READING: the engine's board cards are always a valid selection", () => {
+    const rng = seededRng(903);
+    for (let i = 0; i < 300; i++) {
+      const s = generateHandScenario(((i % 5) + 1) as Level, { rng });
+      expect(s.requireBoardCards).toBe(true);
+      const used = boardCardsInBestFive(s.board, s.hand);
+      expect(used.length).toBeGreaterThanOrEqual(3);
+      expect(isValidBoardSelection(s.board, s.hole, s.hand, used)).toBe(true);
+    }
+  });
   it("board-card step can be switched off", () => {
     expect(generateWinnerScenario(2, { rng: seededRng(3), selectBoardCards: false }).requireBoardCards).toBe(false);
   });

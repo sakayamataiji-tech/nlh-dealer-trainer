@@ -294,7 +294,7 @@ const range = ([a, b]: readonly [number, number]) => (a === b ? `${a}人` : `${a
 const LEVEL_HINT: Record<"hand" | "winner" | "pot" | "sidepot", string[]> = {
   hand: ["明確な役 (Pair / Straight / Flush)", "Two Pair / Trips / Full House / Quads", "全カテゴリ + キッカー判断", "Board Play (ボードが役)", "紛らわしい状況 (Four Flush / Double Paired / Wheel 等)"],
   winner: [
-    `Heads Up`,
+    `${range(WINNER_PLAYERS[1])}`,
     `${range(WINNER_PLAYERS[2])}`,
     `${range(WINNER_PLAYERS[3])} · キッカー勝負多め`,
     `${range(WINNER_PLAYERS[4])} · Board Play 多め`,
@@ -338,7 +338,7 @@ function SettingsPanel({ modeKey }: { modeKey: SessionModeKey }) {
   const mixed = modeKey === "quick" || modeKey === "weakness";
   const playerMode: PlayerSettingMode | null = modeKey === "winner" || modeKey === "pot" || modeKey === "sidepot" ? modeKey : null;
   const showAnte = mixed || modeKey === "pot" || modeKey === "sidepot";
-  const showCards = mixed || modeKey === "winner";
+  const showCards = mixed || modeKey === "winner" || modeKey === "hand";
   if (!playerMode && !showAnte && !showCards) return null;
   return (
     <Panel className="flex flex-col gap-4 p-4">
@@ -373,7 +373,7 @@ function SettingsPanel({ modeKey }: { modeKey: SessionModeKey }) {
       )}
       {showCards && (
         <div>
-          <Label>Board Cards（勝者の役に使うカード選択）{mixed && " · WINNER"}</Label>
+          <Label>Board Cards（役に使うカード選択）{mixed && " · HAND / WINNER"}</Label>
           <div className="mt-2 grid grid-cols-2 gap-1.5">
             <Chip active={s.selectBoardCards} onClick={() => statsStore.setSelectBoardCards(true)}>
               あり
@@ -382,7 +382,7 @@ function SettingsPanel({ modeKey }: { modeKey: SessionModeKey }) {
               なし
             </Chip>
           </div>
-          <div className="mt-1 text-xs text-muted">勝者を選んだあと、役に使われるコミュニティカードを上げるところまで回答します。</div>
+          <div className="mt-1 text-xs text-muted">役（または勝者）を答えたあと、役に使われるコミュニティカードを上げるところまで回答します。</div>
         </div>
       )}
     </Panel>
