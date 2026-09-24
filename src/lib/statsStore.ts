@@ -1,8 +1,18 @@
 "use client";
 import { useSyncExternalStore } from "react";
 import { addRecord, addSession, LocalStorageStatsRepository, type StatsRepository } from "@/stats/repository";
-import { emptyStats, type AnswerRecord, type Experience, EXPERIENCE_OPTIONS, type SessionLength, type SessionSummary, type StatsData } from "@/stats/types";
-import type { Level, TrainingMode } from "@/engine/scenarioTypes";
+import {
+  emptyStats,
+  type AnswerRecord,
+  type Experience,
+  EXPERIENCE_OPTIONS,
+  type PlayerSetting,
+  type PlayerSettingMode,
+  type SessionLength,
+  type SessionSummary,
+  type StatsData,
+} from "@/stats/types";
+import type { AnteType, Level, TrainingMode } from "@/engine/scenarioTypes";
 
 /** Client-side store over a StatsRepository (swap the repository to move to a backend). */
 class StatsStore {
@@ -45,6 +55,15 @@ class StatsStore {
   }
   setAllLevels(level: Level) {
     this.update((d) => ({ ...d, settings: { ...d.settings, levels: { hand: level, winner: level, pot: level, sidepot: level } } }));
+  }
+  setAnte(ante: AnteType) {
+    this.update((d) => ({ ...d, settings: { ...d.settings, ante } }));
+  }
+  setPlayers(mode: PlayerSettingMode, value: PlayerSetting) {
+    this.update((d) => ({ ...d, settings: { ...d.settings, players: { ...d.settings.players, [mode]: value } } }));
+  }
+  setSelectBoardCards(on: boolean) {
+    this.update((d) => ({ ...d, settings: { ...d.settings, selectBoardCards: on } }));
   }
   setSessionLength(len: SessionLength) {
     this.update((d) => ({ ...d, settings: { ...d.settings, sessionLength: len } }));

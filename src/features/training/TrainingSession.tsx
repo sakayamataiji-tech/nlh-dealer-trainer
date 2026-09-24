@@ -5,7 +5,8 @@ import { ChevronLeft, Flame, Play, Square } from "lucide-react";
 import { gradeAnswer, rateSpeed, scoreAnswer, type UserAnswer } from "@/engine/grading";
 import { LEVELS, type Level, type Scenario } from "@/engine/scenarioTypes";
 import { longestStreak, weakestSkill } from "@/stats/aggregate";
-import { SESSION_LENGTHS, type AnswerRecord, type SessionLength, type SessionSummary } from "@/stats/types";
+import { ANTE_OPTIONS, SESSION_LENGTHS, type AnswerRecord, type PlayerSettingMode, type SessionLength, type SessionSummary } from "@/stats/types";
+import { POT_LEVELS, SIDEPOT_LEVELS, WINNER_PLAYERS } from "@/engine/scenarioGenerator";
 import { statsStore, useStats } from "@/lib/statsStore";
 import { Button } from "@/components/ui/button";
 import { Kbd, Label, Panel } from "@/components/ui/panel";
@@ -227,6 +228,7 @@ export function TrainingSession({ modeKey }: { modeKey: SessionModeKey }) {
               </div>
             </Panel>
           )}
+          <SettingsPanel modeKey={modeKey} />
           <Panel className="p-4">
             <Label>Session</Label>
             <div className="mt-2 grid grid-cols-4 gap-1.5">
@@ -283,9 +285,102 @@ function renderMode(s: Scenario, answered: AnsweredState | null, onAnswer: (a: U
   }
 }
 
+const range = ([a, b]: readonly [number, number]) => (a === b ? `${a}人` : `${a}〜${b}人`);
+
 const LEVEL_HINT: Record<"hand" | "winner" | "pot" | "sidepot", string[]> = {
   hand: ["明確な役 (Pair / Straight / Flush)", "Two Pair / Trips / Full House / Quads", "全カテゴリ + キッカー判断", "Board Play (ボードが役)", "紛らわしい状況 (Four Flush / Double Paired / Wheel 等)"],
-  winner: ["Heads Up", "3 players", "4 players · キッカー勝負多め", "5 players · Board Play 多め", "6 players · Counterfeit / FH比較 等"],
-  pot: ["Preflopのみ · 2〜4人", "Flopまで · 3〜5人", "Turnまで · 3〜6人", "Riverまで · 4〜8人", "Riverまで · 5〜9人 · All-inあり"],
-  sidepot: ["3人 · All-in", "3〜4人 · Foldあり", "4人 · Side Pot 2つ以上", "5人 · Postflopあり", "6人 · Fold / 返却あり"],
+  winner: [
+    `Heads Up`,
+    `${range(WINNER_PLAYERS[2])}`,
+    `${range(WINNER_PLAYERS[3])} · キッカー勝負多め`,
+    `${range(WINNER_PLAYERS[4])} · Board Play 多め`,
+    `${range(WINNER_PLAYERS[5])} · Counterfeit / FH比較 等`,
+  ],
+  pot: [
+    `Preflopのみ · ${range(POT_LEVELS[1].players)}`,
+    `Flopまで · ${range(POT_LEVELS[2].players)}`,
+    `Turnまで · ${range(POT_LEVELS[3].players)}`,
+    `Riverまで · ${range(POT_LEVELS[4].players)}`,
+    `Riverまで · ${range(POT_LEVELS[5].players)} · All-inあり`,
+  ],
+  sidepot: [
+    `${range(SIDEPOT_LEVELS[1].players)} · All-in`,
+    `${range(SIDEPOT_LEVELS[2].players)} · Foldあり`,
+    `${range(SIDEPOT_LEVELS[3].players)} · Side Pot 2つ以上`,
+    `${range(SIDEPOT_LEVELS[4].players)} · Postflopあり`,
+    `${range(SIDEPOT_LEVELS[5].players)} · Fold / 返却あり`,
+  ],
 };
+
+const PLAYER_RANGE: Record<PlayerSettingMode, [number, number]> = { winner: [2, 9], pot: [2, 9], sidepot: [3, 9] };
+
+function Chip({ active, onClick, children, className }: { active: boolean; onClick: () => void; children: React.ReactNode; className?: string }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={cn("h-11 rounded-lg border text-sm font-bold tabular", active ? "border-brass bg-brass/15 text-brass" : "border-line bg-panel-2 text-muted hover:text-text", className)}
+    >
+      {children}
+    </button>
+  );
+}
+
+/** Player count / ante / board-card step, shown where they apply. */
+function SettingsPanel({ modeKey }: { modeKey: SessionModeKey }) {
+  const stats = useStats();
+  if (!stats) return null;
+  const s = stats.settings;
+  const mixed = modeKey === "quick" || modeKey === "weakness";
+  const playerMode: PlayerSettingMode | null = modeKey === "winner" || modeKey === "pot" || modeKey === "sidepot" ? modeKey : null;
+  const showAnte = mixed || modeKey === "pot" || modeKey === "sidepot";
+  const showCards = mixed || modeKey === "winner";
+  if (!playerMode && !showAnte && !showCards) return null;
+  return (
+    <Panel className="flex flex-col gap-4 p-4">
+      {playerMode && (
+        <div>
+          <Label>Players（人数）</Label>
+          <div className="mt-2 grid grid-cols-5 gap-1.5 sm:grid-cols-9">
+            <Chip active={s.players[playerMode] === "auto"} onClick={() => statsStore.setPlayers(playerMode, "auto")} className="col-span-2 sm:col-span-1">
+              AUTO
+            </Chip>
+            {Array.from({ length: PLAYER_RANGE[playerMode][1] - PLAYER_RANGE[playerMode][0] + 1 }, (_, i) => PLAYER_RANGE[playerMode][0] + i).map((n) => (
+              <Chip key={n} active={s.players[playerMode] === n} onClick={() => statsStore.setPlayers(playerMode, n)}>
+                {n}
+              </Chip>
+            ))}
+          </div>
+          <div className="mt-1 text-xs text-muted">AUTO = 難易度に合わせた人数</div>
+        </div>
+      )}
+      {showAnte && (
+        <div>
+          <Label>Ante（アンティ）{mixed && " · POT / SIDE POT"}</Label>
+          <div className="mt-2 grid grid-cols-3 gap-1.5">
+            {ANTE_OPTIONS.map((o) => (
+              <Chip key={o.value} active={s.ante === o.value} onClick={() => statsStore.setAnte(o.value)}>
+                {o.label}
+              </Chip>
+            ))}
+          </div>
+          <div className="mt-1 text-xs text-muted">BBアンティ = BBが1BB分を支払い / 全員アンティ = 各プレイヤーが1/8 BB。アンティはデッドマネーとしてメインポットに入ります。</div>
+        </div>
+      )}
+      {showCards && (
+        <div>
+          <Label>Board Cards（勝者の役に使うカード選択）{mixed && " · WINNER"}</Label>
+          <div className="mt-2 grid grid-cols-2 gap-1.5">
+            <Chip active={s.selectBoardCards} onClick={() => statsStore.setSelectBoardCards(true)}>
+              あり
+            </Chip>
+            <Chip active={!s.selectBoardCards} onClick={() => statsStore.setSelectBoardCards(false)}>
+              なし
+            </Chip>
+          </div>
+          <div className="mt-1 text-xs text-muted">勝者を選んだあと、役に使われるコミュニティカードを上げるところまで回答します。</div>
+        </div>
+      )}
+    </Panel>
+  );
+}

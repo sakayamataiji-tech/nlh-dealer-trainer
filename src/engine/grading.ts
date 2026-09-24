@@ -1,10 +1,12 @@
+import type { Card } from "./cards";
 import type { HandCategory } from "./handEvaluator";
-import type { Scenario } from "./scenarioTypes";
+import type { Scenario, WinnerScenario } from "./scenarioTypes";
+import { isValidBoardSelection } from "./boardSelection";
 
 /** User answers per mode. */
 export type UserAnswer =
   | { mode: "hand"; category: HandCategory }
-  | { mode: "winner"; key: string }
+  | { mode: "winner"; key: string; boardCards?: Card[] }
   | { mode: "pot"; amount: number }
   | { mode: "sidepot"; amounts: Record<string, number> };
 
@@ -20,8 +22,13 @@ export function gradeAnswer(scenario: Scenario, answer: UserAnswer): GradeResult
   switch (scenario.mode) {
     case "hand":
       return { correct: scenario.hand.category === (answer as { category: HandCategory }).category };
-    case "winner":
-      return { correct: scenario.correctKey === (answer as { key: string }).key };
+    case "winner": {
+      const a = answer as { key: string; boardCards?: Card[] };
+      const winnerOk = scenario.correctKey === a.key;
+      if (!scenario.requireBoardCards) return { correct: winnerOk, parts: { winner: winnerOk } };
+      const cardsOk = !!a.boardCards && boardSelectionCorrect(scenario, a.key, a.boardCards);
+      return { correct: winnerOk && cardsOk, parts: { winner: winnerOk, cards: cardsOk } };
+    }
     case "pot":
       return { correct: scenario.answer === (answer as { amount: number }).amount };
     case "sidepot": {
@@ -62,4 +69,18 @@ export function scoreAnswer(correct: boolean, speed: SpeedRating, streak: number
   const streakBonus = Math.min(streak, 10) * 5;
   const levelBonus = (level - 1) * 10;
   return { base, speedBonus, streakBonus, levelBonus, total: base + speedBonus + streakBonus + levelBonus, streak };
+}
+
+/**
+ * Board-card part of a WINNER answer. The cards are judged against the hand of the
+ * player the user named (so card reading is scored separately from winner choice);
+ * for "SPLIT" they are judged against the actual winner(s).
+ */
+export function boardSelectionCorrect(scenario: WinnerScenario, key: string, cards: readonly Card[]): boolean {
+  const targets = key === "SPLIT" ? scenario.result.winners : [key];
+  return targets.some((id) => {
+    const player = scenario.players.find((p) => p.id === id);
+    const entry = scenario.result.entries.find((e) => e.id === id);
+    return !!player && !!entry && isValidBoardSelection(scenario.board, player.hole, entry.hand, cards);
+  });
 }

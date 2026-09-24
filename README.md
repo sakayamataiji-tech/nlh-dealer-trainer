@@ -33,7 +33,9 @@ Flow (spec §19): **Scenario generation → rules engine computes the answer →
 No answers are hard-coded; generator "targets" (e.g. "make a straight") only filter which random deals are kept, and the
 answer is always recomputed by the evaluator / calculators.
 
-Conventions: bet/raise amounts are **"to"** amounts (the player's total on that street). MVP uses no ante (the engine supports one).
+Conventions: bet/raise amounts are **"to"** amounts (the player's total on that street).
+
+Settings (training setup screen): player count (AUTO by level, or fixed 2–9), ante (none / BB ante = 1 BB / everyone = 1/8 BB — antes are dead money added to the main pot), and the WINNER board-card step (after choosing the winner, push up the community cards that play; any equivalent selection is accepted).
 
 Storage: `StatsRepository` (LocalStorage implementation) holds a single versioned document (`schemaVersion: 1`); swapping in a Supabase repository only requires implementing `load/save/clear`.
 

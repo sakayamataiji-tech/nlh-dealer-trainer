@@ -7,6 +7,7 @@
  *  - A layer funded by a single player is an uncalled amount and is returned to that player.
  *  - Adjacent layers with identical eligibility are merged (folded players' levels never create extra pots).
  *  - A layer with contributors but no eligible players (all folded) is merged into the pot below.
+ *  - Dead money (antes) is added to the main pot; pass BETTING contributions (antes excluded).
  */
 export interface Contribution {
   playerId: string;
@@ -20,21 +21,25 @@ export interface Pot {
   name: string;
   amount: number;
   eligible: string[];
-  /** Per-player amount that went into this pot. */
+  /** Per-player amount that went into this pot (betting only). */
   contributors: Record<string, number>;
+  /** Dead money (antes) included in `amount` — main pot only. */
+  deadMoney: number;
 }
 
 export interface SidePotResult {
   pots: Pot[];
   returned: { playerId: string; amount: number }[];
   total: number;
+  deadMoney: number;
 }
 
 export function potName(index: number): string {
   return index === 0 ? "MAIN POT" : `SIDE POT ${index}`;
 }
 
-export function buildPots(contributions: readonly Contribution[]): SidePotResult {
+export function buildPots(contributions: readonly Contribution[], opts: { deadMoney?: number } = {}): SidePotResult {
+  const deadMoney = opts.deadMoney ?? 0;
   for (const c of contributions) {
     if (!Number.isFinite(c.amount) || c.amount < 0) throw new Error(`Invalid contribution for ${c.playerId}`);
   }
@@ -82,9 +87,18 @@ export function buildPots(contributions: readonly Contribution[]): SidePotResult
   }
   if (pending.length) throw new Error("No eligible player for any pot");
 
-  const pots: Pot[] = merged.map((l, i) => ({ index: i, name: potName(i), amount: l.amount, eligible: l.eligible, contributors: l.contributors }));
+  const pots: Pot[] = merged.map((l, i) => ({ index: i, name: potName(i), amount: l.amount, eligible: l.eligible, contributors: l.contributors, deadMoney: 0 }));
+  if (deadMoney > 0) {
+    if (pots.length === 0) {
+      const live = contributions.filter((c) => !c.folded).map((c) => c.playerId);
+      if (live.length === 0) throw new Error("No eligible player for dead money");
+      pots.push({ index: 0, name: potName(0), amount: 0, eligible: live, contributors: {}, deadMoney: 0 });
+    }
+    pots[0].amount += deadMoney;
+    pots[0].deadMoney = deadMoney;
+  }
   const total = pots.reduce((s, p) => s + p.amount, 0);
-  return { pots, returned, total };
+  return { pots, returned, total, deadMoney };
 }
 
 function sameSet(a: readonly string[], b: readonly string[]): boolean {

@@ -24,6 +24,7 @@ export function PotMode({ scenario, answered, onAnswer, verdict }: ModeViewProps
       <div className="flex items-baseline justify-between">
         <Label>
           Blinds SB {formatChips(scenario.blinds.sb)} / BB {formatChips(scenario.blinds.bb)}
+          {r.anteTotal > 0 && ` · ${scenario.blinds.anteType === "bb" ? "BB ANTE" : "ANTE"} ${formatChips(scenario.blinds.ante)}`}
         </Label>
         <span className="text-[10px] tracking-widest text-muted">RAISE = RAISE TO</span>
       </div>
@@ -98,6 +99,13 @@ export function PotMode({ scenario, answered, onAnswer, verdict }: ModeViewProps
                     </td>
                   </tr>
                 ))}
+                {r.anteTotal > 0 && (
+                  <tr className="text-xs text-muted">
+                    <td className="pt-1" colSpan={3}>
+                      うちアンティ {formatChips(r.anteTotal)}（{scenario.blinds.anteType === "bb" ? "BBアンティ" : `${formatChips(scenario.blinds.ante)} × ${scenario.players.length}人`}）
+                    </td>
+                  </tr>
+                )}
                 <tr className="border-t border-line font-bold">
                   <td className="pt-1">TOTAL</td>
                   <td className="pt-1 text-right text-brass">{formatChips(scenario.answer)}</td>

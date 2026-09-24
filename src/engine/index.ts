@@ -12,3 +12,4 @@ export * from "./skills";
 export * from "./scenarioTypes";
 export * from "./scenarioGenerator";
 export * from "./grading";
+export * from "./boardSelection";

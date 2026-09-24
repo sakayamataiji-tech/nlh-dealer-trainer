@@ -6,7 +6,7 @@
  * random deals are kept; the answer is always recomputed by the engine and never
  * taken from the target.
  */
-import type { BlindStructure, Street, TableAction } from "./actions";
+import type { AnteType, BlindStructure, Street, TableAction } from "./actions";
 import { STREETS } from "./actions";
 import { HandState, type LegalAction } from "./bettingEngine";
 import { type Card, makeCard, rankValue, SUITS, suitOf, type Suit } from "./cards";
@@ -34,6 +34,16 @@ export interface GenerateOptions {
   rng?: Rng;
   /** Weakness training: prefer scenarios whose derived skills include this tag. */
   focus?: SkillTag;
+  /** Fixed player count (WINNER 2-9, POT 2-9, SIDE POT 3-9). Omit for the level default. */
+  players?: number;
+  /** Ante format for POT / SIDE POT. Default "none". */
+  ante?: AnteType;
+  /** WINNER: also ask which board cards play in the winning hand. Default true. */
+  selectBoardCards?: boolean;
+}
+
+function clampPlayers(n: number | undefined, min: number, max: number): number | undefined {
+  return n === undefined ? undefined : Math.min(max, Math.max(min, Math.round(n)));
 }
 
 let idCounter = 0;
@@ -341,7 +351,16 @@ export function winnerSkills(board: readonly Card[], players: readonly WinnerPla
   return [...tags];
 }
 
-const PLAYER_NAMES = ["PLAYER 1", "PLAYER 2", "PLAYER 3", "PLAYER 4", "PLAYER 5", "PLAYER 6"];
+const PLAYER_NAMES = Array.from({ length: 9 }, (_, i) => `PLAYER ${i + 1}`);
+
+/** Default WINNER player count by level (a fixed count can be chosen in settings). */
+export const WINNER_PLAYERS: Record<Level, [number, number]> = {
+  1: [2, 2],
+  2: [3, 3],
+  3: [4, 5],
+  4: [6, 7],
+  5: [8, 9],
+};
 
 function makeWinnerPlayers(dealer: Dealer, n: number, rng: Rng): WinnerPlayer[] {
   return Array.from({ length: n }, (_, i) => ({ id: `P${i + 1}`, name: PLAYER_NAMES[i], hole: dealer.deal(2) })).map((p) => ({
@@ -475,7 +494,8 @@ export const WINNER_SPLIT_RATE = 0.15;
 
 export function generateWinnerScenario(level: Level, opts: GenerateOptions = {}): WinnerScenario {
   const rng = opts.rng ?? defaultRng;
-  const n = level + 1;
+  const n = clampPlayers(opts.players, 2, 9) ?? randInt(rng, ...WINNER_PLAYERS[level]);
+  const requireBoardCards = opts.selectBoardCards ?? true;
   const wantSplit = opts.focus === "split-pot" || rng() < WINNER_SPLIT_RATE;
   const build = (board: Card[], players: WinnerPlayer[]): WinnerScenario => {
     const result = resolveShowdown(board, players);
@@ -491,7 +511,8 @@ export function generateWinnerScenario(level: Level, opts: GenerateOptions = {})
       skills,
       choices: [...players.map((p) => ({ key: p.id, label: p.name })), { key: "SPLIT", label: "SPLIT" }],
       correctKey,
-      targetSeconds: 3 + n * 1.5,
+      requireBoardCards,
+      targetSeconds: 3 + n * 1.5 + (requireBoardCards ? 3 : 0),
     };
   };
   // MVP: only complete splits (every player ties) or a single winner. Partial ties are rejected.
@@ -559,6 +580,14 @@ const BLIND_OPTIONS: BlindStructure[] = [
   { sb: 500, bb: 1000, ante: 0 },
   { sb: 1000, bb: 2000, ante: 0 },
 ];
+
+/** Blinds with the chosen ante: BB ante = 1 BB; traditional ante = 1/8 BB per player. */
+function pickBlinds(rng: Rng, ante: AnteType = "none"): BlindStructure {
+  const b = pick(rng, BLIND_OPTIONS);
+  if (ante === "bb") return { ...b, ante: b.bb, anteType: "bb" };
+  if (ante === "all") return { ...b, ante: b.bb / 8, anteType: "all" };
+  return { ...b, ante: 0, anteType: "none" };
+}
 
 interface Policy {
   allowAllIn: boolean;
@@ -661,12 +690,12 @@ function seatPlayers(n: number, stacks: number[]): SeatedPlayer[] {
 /* POT                                                                */
 /* ------------------------------------------------------------------ */
 
-const POT_LEVELS: Record<Level, { players: [number, number]; street: Street; allIn: boolean; unitDiv: number }> = {
-  1: { players: [2, 4], street: "preflop", allIn: false, unitDiv: 2 },
-  2: { players: [3, 5], street: "flop", allIn: false, unitDiv: 2 },
-  3: { players: [3, 6], street: "turn", allIn: false, unitDiv: 2 },
-  4: { players: [4, 8], street: "river", allIn: false, unitDiv: 4 },
-  5: { players: [5, 9], street: "river", allIn: true, unitDiv: 4 },
+export const POT_LEVELS: Record<Level, { players: [number, number]; street: Street; allIn: boolean; unitDiv: number }> = {
+  1: { players: [2, 5], street: "preflop", allIn: false, unitDiv: 2 },
+  2: { players: [3, 6], street: "flop", allIn: false, unitDiv: 2 },
+  3: { players: [4, 7], street: "turn", allIn: false, unitDiv: 2 },
+  4: { players: [5, 9], street: "river", allIn: false, unitDiv: 4 },
+  5: { players: [6, 9], street: "river", allIn: true, unitDiv: 4 },
 };
 
 export function generatePotScenario(level: Level, opts: GenerateOptions = {}): PotScenario {
@@ -674,9 +703,9 @@ export function generatePotScenario(level: Level, opts: GenerateOptions = {}): P
   const cfg = POT_LEVELS[level];
   let fallback: PotScenario | null = null;
   for (let attempt = 0; attempt < 200; attempt++) {
-    const blinds = pick(rng, BLIND_OPTIONS);
+    const blinds = pickBlinds(rng, opts.ante);
     const unit = blinds.bb / cfg.unitDiv;
-    const n = randInt(rng, cfg.players[0], cfg.players[1]);
+    const n = clampPlayers(opts.players, 2, 9) ?? randInt(rng, cfg.players[0], cfg.players[1]);
     const stacks = Array.from({ length: n }, () =>
       cfg.allIn ? randInt(rng, 15, 150) * blinds.bb + randInt(rng, 0, 3) * unit : randInt(rng, 150, 300) * blinds.bb,
     );
@@ -701,6 +730,7 @@ export function generatePotScenario(level: Level, opts: GenerateOptions = {}): P
     const skills: SkillTag[] = [cfg.street === "preflop" ? "pot-preflop" : "pot-multistreet"];
     if (result.allIn.length > 0) skills.push("pot-allin");
     if (result.uncalled) skills.push("uncalled-bet");
+    if (result.anteTotal > 0) skills.push("ante");
     const voluntary = actions.filter((a) => a.type !== "post_sb" && a.type !== "post_bb" && a.type !== "ante").length;
     const scenario: PotScenario = {
       id: newId(rng),
@@ -729,12 +759,12 @@ export function generatePotScenario(level: Level, opts: GenerateOptions = {}): P
 /* SIDE POT                                                           */
 /* ------------------------------------------------------------------ */
 
-const SIDEPOT_LEVELS: Record<Level, { players: [number, number]; minPots: number; stopAfter: Street; foldRate: number; needFold: boolean }> = {
+export const SIDEPOT_LEVELS: Record<Level, { players: [number, number]; minPots: number; stopAfter: Street; foldRate: number; needFold: boolean }> = {
   1: { players: [3, 3], minPots: 2, stopAfter: "preflop", foldRate: 0, needFold: false },
-  2: { players: [3, 4], minPots: 2, stopAfter: "preflop", foldRate: 0.15, needFold: false },
-  3: { players: [4, 4], minPots: 3, stopAfter: "preflop", foldRate: 0.2, needFold: true },
-  4: { players: [5, 5], minPots: 3, stopAfter: "river", foldRate: 0.2, needFold: true },
-  5: { players: [6, 6], minPots: 3, stopAfter: "river", foldRate: 0.25, needFold: true },
+  2: { players: [3, 5], minPots: 2, stopAfter: "preflop", foldRate: 0.15, needFold: false },
+  3: { players: [4, 6], minPots: 3, stopAfter: "preflop", foldRate: 0.2, needFold: true },
+  4: { players: [5, 8], minPots: 3, stopAfter: "river", foldRate: 0.2, needFold: true },
+  5: { players: [6, 9], minPots: 3, stopAfter: "river", foldRate: 0.25, needFold: true },
 };
 
 const LETTERS = "ABCDEFGHI";
@@ -744,9 +774,11 @@ export function generateSidePotScenario(level: Level, opts: GenerateOptions = {}
   const cfg = SIDEPOT_LEVELS[level];
   let fallback: SidePotScenario | null = null;
   for (let attempt = 0; attempt < 400; attempt++) {
-    const blinds = pick(rng, BLIND_OPTIONS);
+    const blinds = pickBlinds(rng, opts.ante);
     const unit = level >= 4 ? blinds.bb / 2 : blinds.bb;
-    const n = randInt(rng, cfg.players[0], cfg.players[1]);
+    const n = clampPlayers(opts.players, 3, 9) ?? randInt(rng, cfg.players[0], cfg.players[1]);
+    // With 3 players the most is main + 1 side pot (the top stack's excess is returned).
+    const minPots = Math.min(cfg.minPots, n - 1);
     // Distinct stacks so all-ins create different levels.
     const stackSet = new Set<number>();
     while (stackSet.size < n) stackSet.add(randInt(rng, 8, 90) * blinds.bb + (level >= 4 ? randInt(rng, 0, 1) * unit : 0));
@@ -776,14 +808,19 @@ export function generateSidePotScenario(level: Level, opts: GenerateOptions = {}
     }
     const actions = [...state.log];
     const potResult = calculatePot(players, blinds, actions, { settle: false });
-    const pots = buildPots(players.map((p) => ({ playerId: p.id, amount: potResult.contributions[p.id], folded: potResult.folded.includes(p.id) })));
-    if (pots.pots.length < cfg.minPots) continue;
-    const foldedContribution = potResult.folded.some((id) => potResult.contributions[id] > 0);
+    // Antes are dead money in the main pot; side pots are cut from betting contributions only.
+    const pots = buildPots(
+      players.map((p) => ({ playerId: p.id, amount: potResult.betContributions[p.id], folded: potResult.folded.includes(p.id) })),
+      { deadMoney: potResult.anteTotal },
+    );
+    if (pots.pots.length < minPots) continue;
+    const foldedContribution = potResult.folded.some((id) => potResult.betContributions[id] > 0);
     if (cfg.needFold && !foldedContribution && rng() < 0.7) continue;
     const skills: SkillTag[] = ["side-pot"];
     if (pots.pots.length >= 3) skills.push("multiple-side-pots");
     if (foldedContribution) skills.push("folded-contribution");
     if (pots.returned.length > 0) skills.push("uncalled-bet");
+    if (potResult.anteTotal > 0) skills.push("ante");
     const nameOf = (id: string) => players.find((p) => p.id === id)!.name;
     const questions = [
       ...pots.pots.map((p) => ({ key: `pot${p.index}`, label: potName(p.index), answer: p.amount })),

@@ -1,5 +1,5 @@
 import type { BlindStructure, Street, TableAction, TablePlayer } from "./actions";
-import { STREETS } from "./actions";
+import { anteTypeOf, STREETS } from "./actions";
 
 /**
  * NLH betting state machine used to generate only-legal action sequences.
@@ -74,8 +74,10 @@ export class HandState {
 
   private postForced() {
     const { ante, sb, bb } = this.blinds;
-    if (ante > 0) {
+    const anteType = anteTypeOf(this.blinds);
+    if (anteType === "all") {
       for (const p of this.players) {
+        if (p.stack <= 0) continue;
         this.put(p, ante, false);
         this.log.push({ playerId: p.id, street: "preflop", type: "ante", amount: ante });
       }
@@ -89,6 +91,11 @@ export class HandState {
     if (bbP.stack > 0) {
       this.put(bbP, bb);
       this.log.push({ playerId: bbP.id, street: "preflop", type: "post_bb", amount: bb });
+    }
+    // BB ante is posted after the blind: the blind has priority when the BB is short.
+    if (anteType === "bb" && bbP.stack > 0) {
+      this.put(bbP, ante, false);
+      this.log.push({ playerId: bbP.id, street: "preflop", type: "ante", amount: ante });
     }
     this.currentBet = bb;
     this.lastRaiseSize = bb;

@@ -1,4 +1,4 @@
-import type { BlindStructure, Street, TableAction, TablePlayer } from "./actions";
+import type { AnteType, BlindStructure, Street, TableAction, TablePlayer } from "./actions";
 import type { Card } from "./cards";
 import type { ShowdownResult } from "./handComparator";
 import type { EvaluatedHand, HandCategory } from "./handEvaluator";
@@ -44,6 +44,8 @@ export interface WinnerScenario extends BaseScenario {
   /** Choice keys: player ids + "SPLIT". */
   choices: { key: string; label: string }[];
   correctKey: string;
+  /** Second step: push up the board cards that play in the winning hand. */
+  requireBoardCards: boolean;
 }
 
 export interface SeatedPlayer extends TablePlayer {
@@ -77,5 +79,7 @@ export interface SidePotScenario extends BaseScenario {
   pots: SidePotResult;
   questions: NumericQuestion[];
 }
+
+export type { AnteType };
 
 export type Scenario = HandScenario | WinnerScenario | PotScenario | SidePotScenario;

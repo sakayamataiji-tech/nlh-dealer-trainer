@@ -5,7 +5,9 @@ import {
   generateScenario,
   generateSidePotScenario,
   generateWinnerScenario,
+  WINNER_PLAYERS,
 } from "@/engine/scenarioGenerator";
+import { boardCardsInBestFive, isValidBoardSelection } from "@/engine/boardSelection";
 import { evaluatePlayer, HandCategory } from "@/engine/handEvaluator";
 import { resolveShowdown } from "@/engine/handComparator";
 import { calculatePot } from "@/engine/potCalculator";
@@ -48,11 +50,13 @@ describe("scenarioGenerator: HAND READING", () => {
 });
 
 describe("scenarioGenerator: WINNER", () => {
-  it.each(LEVELS)("level %i: player count = level+1, no dup cards, correct key from comparator, no partial split", (level) => {
+  it.each(LEVELS)("level %i: player count in level range, no dup cards, correct key from comparator, no partial split", (level) => {
     const rng = seededRng(100 + level);
     for (let i = 0; i < N; i++) {
       const s = generateWinnerScenario(level, { rng });
-      expect(s.players).toHaveLength(level + 1);
+      const [min, max] = WINNER_PLAYERS[level];
+      expect(s.players.length).toBeGreaterThanOrEqual(min);
+      expect(s.players.length).toBeLessThanOrEqual(max);
       assertNoDuplicates([...s.board, ...s.players.flatMap((p) => p.hole)]);
       const r = resolveShowdown(s.board, s.players);
       expect(r.winners.length === 1 || r.winners.length === s.players.length).toBe(true);
@@ -72,7 +76,7 @@ describe("scenarioGenerator: WINNER", () => {
     for (let i = 0; i < 30; i++) {
       const s = generateWinnerScenario(5, { rng, focus: "split-pot" });
       expect(s.correctKey).toBe("SPLIT");
-      expect(s.result.winners).toHaveLength(6);
+      expect(s.result.winners).toHaveLength(s.players.length);
     }
   });
 });
@@ -129,5 +133,57 @@ describe("scenarioGenerator: performance", () => {
     const start = Date.now();
     for (const mode of ["hand", "winner", "pot", "sidepot"] as const) for (let i = 0; i < 50; i++) generateScenario(mode, (((i % 5) + 1) as Level), { rng });
     expect(Date.now() - start).toBeLessThan(10000);
+  });
+});
+
+describe("scenarioGenerator: player count, ante and board-card selection", () => {
+  it("fixed player counts are honoured (WINNER 2-9, POT 2-9, SIDE POT 3-9)", () => {
+    const rng = seededRng(900);
+    for (let n = 2; n <= 9; n++) {
+      expect(generateWinnerScenario(3, { rng, players: n }).players).toHaveLength(n);
+      expect(generatePotScenario(3, { rng, players: n }).players).toHaveLength(n);
+      if (n >= 3) expect(generateSidePotScenario(3, { rng, players: n }).players).toHaveLength(n);
+    }
+  });
+  it("9-player WINNER splits are complete splits", () => {
+    const rng = seededRng(901);
+    for (let i = 0; i < 20; i++) {
+      const s = generateWinnerScenario(5, { rng, players: 9, focus: "split-pot" });
+      expect(s.result.winners).toHaveLength(9);
+      assertNoDuplicates([...s.board, ...s.players.flatMap((p) => p.hole)]);
+    }
+  });
+  it("the engine's own board cards are always a valid selection for every winner", () => {
+    const rng = seededRng(902);
+    for (let i = 0; i < 300; i++) {
+      const s = generateWinnerScenario(((i % 5) + 1) as Level, { rng });
+      expect(s.requireBoardCards).toBe(true);
+      for (const id of s.result.winners) {
+        const p = s.players.find((x) => x.id === id)!;
+        const hand = s.result.entries.find((e) => e.id === id)!.hand;
+        const used = boardCardsInBestFive(s.board, hand);
+        expect(used.length).toBeGreaterThanOrEqual(3);
+        expect(isValidBoardSelection(s.board, p.hole, hand, used)).toBe(true);
+      }
+    }
+  });
+  it("board-card step can be switched off", () => {
+    expect(generateWinnerScenario(2, { rng: seededRng(3), selectBoardCards: false }).requireBoardCards).toBe(false);
+  });
+  it.each(["all", "bb"] as const)("ante %s: POT answer equals replay; antes are dead money in the main pot", (ante) => {
+    const rng = seededRng(ante === "all" ? 950 : 951);
+    for (let i = 0; i < 80; i++) {
+      const level = ((i % 5) + 1) as Level;
+      const p = generatePotScenario(level, { rng, ante });
+      const r = calculatePot(p.players, p.blinds, p.actions);
+      expect(p.answer).toBe(r.total);
+      expect(r.anteTotal).toBe(ante === "bb" ? p.blinds.bb : (p.blinds.bb / 8) * p.players.length);
+      expect(p.skills).toContain("ante");
+      const sp = generateSidePotScenario(level, { rng, ante });
+      expect(sp.pots.deadMoney).toBe(sp.potResult.anteTotal);
+      expect(sp.pots.pots[0].deadMoney).toBe(sp.potResult.anteTotal);
+      const returned = sp.pots.returned.reduce((a, b) => a + b.amount, 0);
+      expect(sp.pots.total + returned).toBe(sp.potResult.grossTotal);
+    }
   });
 });

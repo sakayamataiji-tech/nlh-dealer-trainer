@@ -34,6 +34,7 @@ export const SKILLS = {
   "multiple-side-pots": { label: "Multiple Side Pots", modes: ["sidepot"] },
   "folded-contribution": { label: "Folded Player Contribution", modes: ["sidepot"] },
   "uncalled-bet": { label: "Uncalled Bet Return", modes: ["sidepot", "pot"] },
+  ante: { label: "Ante", modes: ["pot", "sidepot"] },
 } as const satisfies Record<string, { label: string; modes: readonly TrainingMode[] }>;
 
 export type SkillTag = keyof typeof SKILLS;

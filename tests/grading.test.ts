@@ -3,6 +3,7 @@ import { gradeAnswer, rateSpeed, scoreAnswer } from "@/engine/grading";
 import { generateHandScenario, generateSidePotScenario, generateWinnerScenario, generatePotScenario } from "@/engine/scenarioGenerator";
 import { seededRng } from "@/engine/shuffle";
 import { HandCategory } from "@/engine/handEvaluator";
+import { boardCardsInBestFive } from "@/engine/boardSelection";
 
 describe("grading", () => {
   const rng = seededRng(55);
@@ -14,8 +15,17 @@ describe("grading", () => {
   });
   it("winner / pot / side pot", () => {
     const w = generateWinnerScenario(3, { rng });
-    expect(gradeAnswer(w, { mode: "winner", key: w.correctKey }).correct).toBe(true);
-    expect(gradeAnswer(w, { mode: "winner", key: "nobody" }).correct).toBe(false);
+    const winHand = w.result.entries.find((e) => e.id === w.result.winners[0])!.hand;
+    const used = boardCardsInBestFive(w.board, winHand);
+    expect(gradeAnswer(w, { mode: "winner", key: w.correctKey, boardCards: used }).correct).toBe(true);
+    // Right winner, cards missing → incorrect (winner part still marked correct).
+    const noCards = gradeAnswer(w, { mode: "winner", key: w.correctKey });
+    expect(noCards.correct).toBe(false);
+    expect(noCards.parts).toEqual({ winner: true, cards: false });
+    expect(gradeAnswer(w, { mode: "winner", key: "nobody", boardCards: used }).correct).toBe(false);
+    // Board-card step disabled: winner only.
+    const w2 = generateWinnerScenario(3, { rng, selectBoardCards: false });
+    expect(gradeAnswer(w2, { mode: "winner", key: w2.correctKey }).correct).toBe(true);
     const p = generatePotScenario(2, { rng });
     expect(gradeAnswer(p, { mode: "pot", amount: p.answer }).correct).toBe(true);
     expect(gradeAnswer(p, { mode: "pot", amount: p.answer + 100 }).correct).toBe(false);

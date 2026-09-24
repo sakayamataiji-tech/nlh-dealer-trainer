@@ -26,9 +26,26 @@ export interface TablePlayer {
   stack: number;
 }
 
+/**
+ * Ante formats:
+ *  - "none": no ante
+ *  - "all":  every player posts `ante` before the blinds (traditional ante)
+ *  - "bb":   the big blind posts `ante` for the table (BB ante). If the BB cannot cover both,
+ *            the blind takes priority over the ante (TDA).
+ * Antes are dead money: they go to the main pot and are never matched or returned.
+ */
+export type AnteType = "none" | "all" | "bb";
+
 export interface BlindStructure {
   sb: number;
   bb: number;
-  /** MVP: always 0. Supported by the engine for future use. */
+  /** Ante amount per payer (0 = no ante). */
   ante: number;
+  /** Defaults to "all" when ante > 0. */
+  anteType?: AnteType;
+}
+
+export function anteTypeOf(b: BlindStructure): AnteType {
+  if (!b.ante) return "none";
+  return b.anteType && b.anteType !== "none" ? b.anteType : "all";
 }

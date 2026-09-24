@@ -22,7 +22,12 @@ export function migrate(raw: unknown): StatsData {
       ...base,
       ...doc,
       profile: { ...base.profile, ...doc.profile },
-      settings: { ...base.settings, ...doc.settings, levels: { ...base.settings.levels, ...doc.settings?.levels } },
+      settings: {
+        ...base.settings,
+        ...doc.settings,
+        levels: { ...base.settings.levels, ...doc.settings?.levels },
+        players: { ...base.settings.players, ...doc.settings?.players },
+      },
       streak: { ...base.streak, ...doc.streak },
       records: Array.isArray(doc.records) ? doc.records : [],
       sessions: Array.isArray(doc.sessions) ? doc.sessions : [],

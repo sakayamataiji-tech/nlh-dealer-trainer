@@ -10,7 +10,10 @@ import { STREETS } from "./actions";
 export interface PotBreakdownRow {
   playerId: string;
   name: string;
+  /** Total chips put in, antes included. */
   contributed: number;
+  /** Ante (dead money) part of `contributed`. */
+  ante: number;
   returned: number;
   /** contributed - returned */
   inPot: number;
@@ -19,8 +22,13 @@ export interface PotBreakdownRow {
 }
 
 export interface PotResult {
-  /** Chips each player has put in (before any uncalled return). */
+  /** Chips each player has put in, antes included (before any uncalled return). */
   contributions: Record<string, number>;
+  /** Antes per player (dead money). */
+  antes: Record<string, number>;
+  /** Betting contributions only (contributions − antes). Used for side pots. */
+  betContributions: Record<string, number>;
+  anteTotal: number;
   /** Chips put in on each street per player. */
   streetContributions: Record<Street, Record<string, number>>;
   /** Cumulative pot at the end of each street that was reached (antes counted preflop). */
@@ -46,11 +54,13 @@ export function calculatePot(
   const settle = opts.settle ?? true;
   const stack: Record<string, number> = {};
   const contributions: Record<string, number> = {};
+  const antes: Record<string, number> = {};
   const streetContributions = Object.fromEntries(STREETS.map((s) => [s, {} as Record<string, number>])) as Record<Street, Record<string, number>>;
   const folded = new Set<string>();
   for (const p of players) {
     stack[p.id] = p.stack;
     contributions[p.id] = 0;
+    antes[p.id] = 0;
     for (const s of STREETS) streetContributions[s][p.id] = 0;
   }
   const potByStreet: Partial<Record<Street, number>> = {};
@@ -80,9 +90,12 @@ export function calculatePot(
     if (folded.has(a.playerId)) throw new Error(`${a.playerId} acted after folding`);
     const already = streetBet[a.playerId] ?? 0;
     switch (a.type) {
-      case "ante":
-        put(a.playerId, Math.min(a.amount ?? 0, stack[a.playerId]), a.street, false);
+      case "ante": {
+        const amt = Math.min(a.amount ?? 0, stack[a.playerId]);
+        put(a.playerId, amt, a.street, false);
+        antes[a.playerId] += amt;
         break;
+      }
       case "post_sb":
       case "post_bb": {
         put(a.playerId, Math.min(a.amount ?? 0, stack[a.playerId]), a.street);
@@ -121,9 +134,12 @@ export function calculatePot(
   potByStreet[street] = sumAll();
 
   const grossTotal = sumAll();
+  const betContributions = Object.fromEntries(players.map((p) => [p.id, contributions[p.id] - antes[p.id]]));
+  const anteTotal = Object.values(antes).reduce((a, b) => a + b, 0);
   let uncalled: PotResult["uncalled"] = null;
   if (settle) {
-    const sorted = players.map((p) => ({ id: p.id, c: contributions[p.id] })).sort((x, y) => y.c - x.c);
+    // Antes are dead money: only the betting part can be uncalled.
+    const sorted = players.map((p) => ({ id: p.id, c: betContributions[p.id] })).sort((x, y) => y.c - x.c);
     if (sorted.length >= 2 && sorted[0].c > sorted[1].c) {
       uncalled = { playerId: sorted[0].id, amount: sorted[0].c - sorted[1].c };
       potByStreet[street] = (potByStreet[street] ?? 0) - uncalled.amount;
@@ -135,6 +151,7 @@ export function calculatePot(
       playerId: p.id,
       name: p.name,
       contributed: contributions[p.id],
+      ante: antes[p.id],
       returned,
       inPot: contributions[p.id] - returned,
       folded: folded.has(p.id),
@@ -143,6 +160,9 @@ export function calculatePot(
   });
   return {
     contributions,
+    antes,
+    betContributions,
+    anteTotal,
     streetContributions,
     potByStreet,
     grossTotal,

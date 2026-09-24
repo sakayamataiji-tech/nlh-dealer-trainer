@@ -44,9 +44,12 @@ export function SidePotMode({ scenario, answered, onAnswer, verdict }: ModeViewP
               ))}
             </div>
           ) : (
-            <div className="text-xs text-text/70">
-              Blinds {formatChips(scenario.blinds.sb)} / {formatChips(scenario.blinds.bb)}
-            </div>
+            <>
+              <div className="text-xs text-text/70">
+                Blinds {formatChips(scenario.blinds.sb)} / {formatChips(scenario.blinds.bb)}
+              </div>
+              {pr.anteTotal > 0 && <ChipAmount amount={pr.anteTotal} label="ANTE" tone="muted" />}
+            </>
           )}
         </div>
       }
@@ -59,7 +62,7 @@ export function SidePotMode({ scenario, answered, onAnswer, verdict }: ModeViewP
               {p.name} <span className="font-normal text-muted">{p.position}</span>
             </div>
             <div className={cn("text-[10px] font-black tracking-[0.2em]", status === "ALL-IN" ? "text-bad" : status === "FOLD" ? "text-muted" : "text-text/80")}>{status}</div>
-            <div className={cn("font-bold tabular", many ? "text-sm" : "text-base sm:text-lg")}>{formatChips(row.contributed)}</div>
+            <div className={cn("font-bold tabular", many ? "text-sm" : "text-base sm:text-lg")}>{formatChips(pr.betContributions[p.id])}</div>
           </div>
         );
       })}
@@ -69,7 +72,7 @@ export function SidePotMode({ scenario, answered, onAnswer, verdict }: ModeViewP
   const panel = (
     <>
       <Panel className="p-3 sm:p-4">
-        <Question sub={`LEVEL ${scenario.level} · Contribution = 各プレイヤーの総投入額`}>{q && !answered ? `${q.label} はいくら？` : "SIDE POT"}</Question>
+        <Question sub={`LEVEL ${scenario.level} · 各プレイヤーの数字 = ベット総額${pr.anteTotal > 0 ? "（アンティ除く・アンティはメインポットへ）" : ""}`}>{q && !answered ? `${q.label} はいくら？` : "SIDE POT"}</Question>
         {!answered && (
           <>
             <div className="mt-2 flex flex-wrap gap-1.5">
@@ -113,6 +116,7 @@ export function SidePotMode({ scenario, answered, onAnswer, verdict }: ModeViewP
                   <div className="text-2xl font-black tabular text-brass">{formatChips(p.amount)}</div>
                   <div className="text-xs text-muted">
                     Eligible <span className="font-semibold text-text">{p.eligible.map(short).join(" / ")}</span>
+                    {p.deadMoney > 0 && <span> · うちアンティ {formatChips(p.deadMoney)}</span>}
                   </div>
                 </div>
               );
