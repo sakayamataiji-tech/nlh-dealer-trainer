@@ -4,6 +4,8 @@ import "./globals.css";
 export const metadata: Metadata = {
   title: "NLH Dealer Trainer",
   description: "速く、正確に、判断する。NLHディーラーのための判断力トレーニング。",
+  appleWebApp: { capable: true, title: "Dealer Trainer", statusBarStyle: "black-translucent" },
+  formatDetection: { telephone: false },
 };
 
 export const viewport: Viewport = {

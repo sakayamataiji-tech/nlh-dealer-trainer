@@ -36,3 +36,16 @@ answer is always recomputed by the evaluator / calculators.
 Conventions: bet/raise amounts are **"to"** amounts (the player's total on that street). MVP uses no ante (the engine supports one).
 
 Storage: `StatsRepository` (LocalStorage implementation) holds a single versioned document (`schemaVersion: 1`); swapping in a Supabase repository only requires implementing `load/save/clear`.
+
+## Playing on a phone
+
+The app is deployed to GitHub Pages by `.github/workflows/deploy.yml` on every push:
+
+**https://sakayamataiji-tech.github.io/nlh-dealer-trainer/**
+
+- One-time setup: repository **Settings → Pages → Build and deployment → Source: "GitHub Actions"**, then re-run the "Deploy to GitHub Pages" workflow (or push any commit).
+- On the phone, open the URL and use **Share → Add to Home Screen** (iOS Safari) or **Install app** (Android Chrome); it then launches full-screen like an app.
+- Everything runs in the browser; progress is kept in that phone's LocalStorage (it is not shared with other devices).
+- Touch devices use the on-screen keypad for POT / SIDE POT (the OS keyboard is suppressed so it never covers the table).
+
+The build reads `PAGES_BASE_PATH` (e.g. `/nlh-dealer-trainer`) for the sub-path; local `npm run dev` / `npm run build` need nothing.

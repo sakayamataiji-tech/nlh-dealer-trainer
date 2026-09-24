@@ -33,6 +33,7 @@ export function SidePotMode({ scenario, answered, onAnswer, verdict }: ModeViewP
   const many = scenario.players.length >= 5;
   const table = (
     <PokerTable
+      hideMobileFelt={!answered}
       center={
         <div className="flex flex-col items-center gap-1 text-center">
           <Label className="text-felt-line">{answered ? "POTS" : "SIDE POT"}</Label>

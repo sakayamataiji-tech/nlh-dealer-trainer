@@ -5,7 +5,7 @@ import { cn } from "@/lib/utils";
  * Oval table seen from the dealer's chair: the dealer (user) sits at the bottom centre,
  * players are placed along the far arc. Seat content is provided by the caller.
  */
-export function PokerTable({ center, seats, className, compact = false }: { center: ReactNode; seats: ReactNode[]; className?: string; compact?: boolean }) {
+export function PokerTable({ center, seats, className, compact = false, hideMobileFelt = false }: { center: ReactNode; seats: ReactNode[]; className?: string; compact?: boolean; hideMobileFelt?: boolean }) {
   const n = seats.length;
   const positions = seatPositions(n);
   const mobileCols = n === 1 ? "grid-cols-1" : n === 2 || n === 4 ? "grid-cols-2" : "grid-cols-3";
@@ -14,8 +14,10 @@ export function PokerTable({ center, seats, className, compact = false }: { cent
       {/* Phones: players across the table in a grid, felt with the board below, dealer at the bottom. */}
       <div className={cn("flex w-full flex-col gap-2 sm:hidden", className)}>
         <div className={cn("grid place-items-center gap-2", mobileCols)}>{seats}</div>
-        <div className="felt flex min-h-28 flex-col items-center justify-center gap-2 rounded-[2rem] border-4 border-rail px-2 py-4 shadow-[0_0_0_1px_#3a2718]">{center}</div>
-        <div className="mx-auto rounded-full border border-brass-dim/60 bg-ink/80 px-3 py-0.5 text-[10px] font-bold tracking-[0.25em] text-brass">DEALER</div>
+        {!hideMobileFelt && (
+        <div className="felt flex min-h-16 flex-col items-center justify-center gap-1.5 rounded-[2rem] border-4 border-rail px-2 py-2.5 shadow-[0_0_0_1px_#3a2718]">{center}</div>
+        )}
+        {!hideMobileFelt && <div className="mx-auto rounded-full border border-brass-dim/60 bg-ink/80 px-3 py-0.5 text-[10px] font-bold tracking-[0.25em] text-brass">DEALER</div>}
       </div>
     <div className={cn("relative mx-auto hidden w-full sm:block", compact ? "aspect-[2/1.05]" : n >= 5 ? "aspect-[2/1.22]" : "aspect-[2/1.02]", className)}>
       <div className="felt rail absolute inset-x-[4%] inset-y-[10%] rounded-[50%] border border-felt-line/40">

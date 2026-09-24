@@ -1,6 +1,6 @@
 "use client";
 import { Delete, CornerDownLeft } from "lucide-react";
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import { cn, formatChips } from "@/lib/utils";
 
 /**
@@ -23,6 +23,9 @@ export function NumberInput({
   autoFocus?: boolean;
 }) {
   const ref = useRef<HTMLInputElement>(null);
+  // On touch devices use the on-screen keypad only, so the OS keyboard never covers the table.
+  const [touch, setTouch] = useState(false);
+  useEffect(() => setTouch(window.matchMedia("(pointer: coarse)").matches), []);
   useEffect(() => {
     if (autoFocus && !disabled && window.matchMedia("(pointer: fine)").matches) ref.current?.focus();
   }, [autoFocus, disabled, label]);
@@ -37,10 +40,12 @@ export function NumberInput({
   return (
     <div className="flex flex-col gap-2">
       <label className="flex flex-col gap-1">
-        <span className="text-xs font-semibold tracking-[0.15em] text-muted">{label}</span>
+        <span className="sr-only text-xs font-semibold tracking-[0.15em] text-muted sm:not-sr-only">{label}</span>
         <input
           ref={ref}
-          inputMode="numeric"
+          inputMode={touch ? "none" : "numeric"}
+          readOnly={touch}
+          data-answer-input
           autoComplete="off"
           disabled={disabled}
           value={pretty}

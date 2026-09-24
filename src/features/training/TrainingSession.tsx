@@ -44,6 +44,8 @@ export function TrainingSession({ modeKey }: { modeKey: SessionModeKey }) {
   const level: Level | null = fixedMode && stats ? stats.settings.levels[fixedMode] : null;
 
   const showScenario = useCallback((s: Scenario) => {
+    // Phones: a new question must start with the table in view, not at the previous explanation.
+    window.scrollTo({ top: 0 });
     setScenario(s);
     setAnswered(null);
     setStartedAt(performance.now());
@@ -169,7 +171,7 @@ export function TrainingSession({ modeKey }: { modeKey: SessionModeKey }) {
                 {session.current.length !== "endless" && <span className="text-muted">/{session.current.length}</span>}
               </div>
             </div>
-            <div className="text-right text-xs tabular">
+            <div className="hidden text-right text-xs tabular sm:block">
               <div className="text-muted">Score</div>
               <div className="font-bold text-brass">{sessionScore.toLocaleString("en-US")}</div>
             </div>
