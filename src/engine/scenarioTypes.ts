@@ -37,10 +37,19 @@ export interface WinnerPlayer {
   hole: Card[];
 }
 
+export interface TableSeat extends SeatedPlayer {
+  hole: Card[];
+}
+
 export interface WinnerScenario extends BaseScenario {
   mode: "winner";
   board: Card[];
+  /** Players who reached showdown (named by position). */
   players: WinnerPlayer[];
+  /** Everyone dealt in, SB-first order; the hand is replayed from `actions`. */
+  table: TableSeat[];
+  blinds: BlindStructure;
+  actions: TableAction[];
   /** Derived from handComparator. */
   result: ShowdownResult;
   /** Choice keys: player ids + "SPLIT". */

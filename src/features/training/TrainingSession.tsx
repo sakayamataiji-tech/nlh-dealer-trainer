@@ -6,7 +6,7 @@ import { gradeAnswer, rateSpeed, scoreAnswer, type UserAnswer } from "@/engine/g
 import { LEVELS, type Level, type Scenario } from "@/engine/scenarioTypes";
 import { longestStreak, weakestSkill } from "@/stats/aggregate";
 import { ANTE_OPTIONS, SESSION_LENGTHS, type AnswerRecord, type PlayerSettingMode, type SessionLength, type SessionSummary } from "@/stats/types";
-import { POT_LEVELS, SIDEPOT_LEVELS, WINNER_PLAYERS } from "@/engine/scenarioGenerator";
+import { POT_LEVELS, SIDEPOT_LEVELS, WINNER_PLAYERS, WINNER_SHOWDOWN } from "@/engine/scenarioGenerator";
 import { statsStore, useStats } from "@/lib/statsStore";
 import { Button } from "@/components/ui/button";
 import { Kbd, Label, Panel } from "@/components/ui/panel";
@@ -49,8 +49,8 @@ export function TrainingSession({ modeKey }: { modeKey: SessionModeKey }) {
     window.scrollTo({ top: 0 });
     setScenario(s);
     setAnswered(null);
-    // POT: the timer starts when the action playback has finished.
-    setStartedAt(s.mode === "pot" ? null : performance.now());
+    // POT / WINNER: the timer starts when the hand playback has finished.
+    setStartedAt(s.mode === "pot" || s.mode === "winner" ? null : performance.now());
   }, []);
   const startTimer = useCallback(() => setStartedAt((t) => t ?? performance.now()), []);
 
@@ -294,11 +294,11 @@ const range = ([a, b]: readonly [number, number]) => (a === b ? `${a}人` : `${a
 const LEVEL_HINT: Record<"hand" | "winner" | "pot" | "sidepot", string[]> = {
   hand: ["明確な役 (Pair / Straight / Flush)", "Two Pair / Trips / Full House / Quads", "全カテゴリ + キッカー判断", "Board Play (ボードが役)", "紛らわしい状況 (Four Flush / Double Paired / Wheel 等)"],
   winner: [
-    `${range(WINNER_PLAYERS[1])}`,
-    `${range(WINNER_PLAYERS[2])}`,
-    `${range(WINNER_PLAYERS[3])} · キッカー勝負多め`,
-    `${range(WINNER_PLAYERS[4])} · Board Play 多め`,
-    `${range(WINNER_PLAYERS[5])} · Counterfeit / FH比較 等`,
+    `${range(WINNER_PLAYERS[1])}卓 · ショーダウン${range(WINNER_SHOWDOWN[1])}`,
+    `${range(WINNER_PLAYERS[2])}卓 · ショーダウン${range(WINNER_SHOWDOWN[2])}`,
+    `${range(WINNER_PLAYERS[3])}卓 · ショーダウン${range(WINNER_SHOWDOWN[3])} · キッカー勝負多め`,
+    `${range(WINNER_PLAYERS[4])}卓 · ショーダウン${range(WINNER_SHOWDOWN[4])} · Board Play 多め`,
+    `${range(WINNER_PLAYERS[5])}卓 · ショーダウン${range(WINNER_SHOWDOWN[5])} · Counterfeit / FH比較 等`,
   ],
   pot: [
     `Preflopのみ · ${range(POT_LEVELS[1].players)}`,

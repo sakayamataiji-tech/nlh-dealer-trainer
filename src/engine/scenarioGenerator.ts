@@ -24,6 +24,7 @@ import type {
   PotScenario,
   Scenario,
   SeatedPlayer,
+  TableSeat,
   SidePotScenario,
   TrainingMode,
   WinnerPlayer,
@@ -355,13 +356,22 @@ export function winnerSkills(board: readonly Card[], players: readonly WinnerPla
 
 const PLAYER_NAMES = Array.from({ length: 9 }, (_, i) => `PLAYER ${i + 1}`);
 
-/** Default WINNER player count by level (a fixed count can be chosen in settings). */
+/** Default WINNER table size by level (a fixed size can be chosen in settings). */
 export const WINNER_PLAYERS: Record<Level, [number, number]> = {
-  1: [4, 5],
-  2: [5, 6],
-  3: [6, 7],
-  4: [7, 8],
-  5: [8, 9],
+  1: [6, 6],
+  2: [6, 7],
+  3: [7, 8],
+  4: [8, 9],
+  5: [9, 9],
+};
+
+/** How many players reach showdown, by level (capped by the table size). */
+export const WINNER_SHOWDOWN: Record<Level, [number, number]> = {
+  1: [2, 2],
+  2: [2, 3],
+  3: [3, 3],
+  4: [3, 4],
+  5: [4, 4],
 };
 
 function makeWinnerPlayers(dealer: Dealer, n: number, rng: Rng): WinnerPlayer[] {
@@ -494,9 +504,9 @@ function winnerAcceptable(level: Level, skills: SkillTag[], rng: Rng): boolean {
 
 export const WINNER_SPLIT_RATE = 0.15;
 
-export function generateWinnerScenario(level: Level, opts: GenerateOptions = {}): WinnerScenario {
+/** Showdown only (hole cards + board + result) for `n` players; the table and action are added by generateWinnerScenario. */
+function generateShowdownCore(level: Level, n: number, opts: GenerateOptions): WinnerScenario {
   const rng = opts.rng ?? defaultRng;
-  const n = clampPlayers(opts.players, 2, 9) ?? randInt(rng, ...WINNER_PLAYERS[level]);
   const requireBoardCards = opts.selectBoardCards ?? true;
   const wantSplit = opts.focus === "split-pot" || rng() < WINNER_SPLIT_RATE;
   const build = (board: Card[], players: WinnerPlayer[]): WinnerScenario => {
@@ -509,6 +519,9 @@ export function generateWinnerScenario(level: Level, opts: GenerateOptions = {})
       level,
       board,
       players,
+      table: [],
+      blinds: { sb: 0, bb: 0, ante: 0 },
+      actions: [],
       result,
       skills,
       choices: [...players.map((p) => ({ key: p.id, label: p.name })), { key: "SPLIT", label: "SPLIT" }],
@@ -570,6 +583,126 @@ export function generateWinnerScenario(level: Level, opts: GenerateOptions = {})
     const players = makeWinnerPlayers(dealer, n, rng);
     if (resolveShowdown(board, players).winners.length === 1) return build(board, players);
   }
+}
+
+/**
+ * WINNER: a full table plays a hand to the river; only the chosen showdown players stay in.
+ * The showdown (and its answer) is generated first, then a legal action sequence is built in
+ * which every other player folds to a bet on some street.
+ */
+export function generateWinnerScenario(level: Level, opts: GenerateOptions = {}): WinnerScenario {
+  const rng = opts.rng ?? defaultRng;
+  const n = clampPlayers(opts.players, 2, 9) ?? randInt(rng, ...WINNER_PLAYERS[level]);
+  const k = Math.min(n, randInt(rng, ...WINNER_SHOWDOWN[level]));
+  const core = generateShowdownCore(level, k, opts);
+
+  for (let attempt = 0; attempt < 60; attempt++) {
+    const positions = positionNames(n);
+    const seatIdx = shuffle(Array.from({ length: n }, (_, i) => i), rng).slice(0, k).sort((a, b) => a - b);
+    // Showdown hands go to the chosen seats (in a random order); everyone else gets random cards.
+    const holes = shuffle(core.players.map((p) => p.hole), rng);
+    const used = new Set<Card>([...core.board, ...holes.flat()]);
+    const rest = shuffle(createDeck().filter((c) => !used.has(c)), rng);
+    const blinds = pickBlinds(rng, "none");
+    const table: TableSeat[] = positions.map((pos, i) => {
+      const si = seatIdx.indexOf(i);
+      return {
+        id: `S${i}`,
+        name: pos,
+        position: pos,
+        stack: randInt(rng, 120, 300) * blinds.bb,
+        hole: si >= 0 ? holes[si] : rest.splice(0, 2),
+      };
+    });
+    const showdownIds = seatIdx.map((i) => `S${i}`);
+    const actions = simulateToShowdown(table, blinds, new Set(showdownIds), rng);
+    if (!actions) continue;
+
+    const players: WinnerPlayer[] = showdownIds.map((id) => {
+      const seat = table.find((t) => t.id === id)!;
+      return { id, name: seat.position, hole: seat.hole };
+    });
+    const result = resolveShowdown(core.board, players);
+    const skills = winnerSkills(core.board, players, result);
+    return {
+      ...core,
+      players,
+      table,
+      blinds,
+      actions,
+      result,
+      skills,
+      choices: [...players.map((p) => ({ key: p.id, label: p.name })), { key: "SPLIT", label: "SPLIT" }],
+      correctKey: result.isSplit ? "SPLIT" : result.winners[0],
+      targetSeconds: 3 + k * 1.5 + (core.requireBoardCards ? 3 : 0),
+    };
+  }
+  throw new Error("Failed to build a hand that reaches the chosen showdown");
+}
+
+/**
+ * Plays a legal hand where exactly `showdown` reach the river. Each other player gets a street
+ * on which they fold to a bet; showdown players bet whenever a pending folder has nothing to face.
+ * Returns null if the script could not be satisfied (caller retries).
+ */
+function simulateToShowdown(table: readonly TableSeat[], blinds: BlindStructure, showdown: Set<string>, rng: Rng): TableAction[] | null {
+  const state = new HandState(table, blinds);
+  const unit = blinds.bb / 2;
+  const foldStreet = new Map<string, number>();
+  for (const t of table) if (!showdown.has(t.id)) foldStreet.set(t.id, weightedPick(rng, [{ value: 0, weight: 5 }, { value: 1, weight: 3 }, { value: 2, weight: 2 }, { value: 3, weight: 1 }]));
+
+  const streetIdx = () => STREETS.indexOf(state.street);
+  const pendingFolderNotFacing = () =>
+    state.players.some((p) => !p.folded && !showdown.has(p.id) && foldStreet.get(p.id)! <= streetIdx() && p.street >= state.currentBet);
+  const pendingFolderLeft = () => state.players.some((p) => !p.folded && !showdown.has(p.id) && foldStreet.get(p.id)! <= streetIdx());
+
+  for (let guard = 0; guard < 400; guard++) {
+    const i = state.nextToAct();
+    if (i === -1) {
+      if (state.finished) return null;
+      if (pendingFolderLeft()) return null; // a folder never faced a bet this street
+      if (state.street === "river") break;
+      if (!state.advanceStreet()) return null;
+      continue;
+    }
+    const p = state.players[i];
+    const legal = state.legalActions(i);
+    const has = (t: LegalAction["type"]) => legal.find((l) => l.type === t);
+    const facing = state.currentBet > p.street;
+    const cap = (to: number) => Math.min(to, p.street + p.stack - unit);
+    let action: { type: LegalAction["type"]; to?: number } | null = null;
+
+    if (!showdown.has(p.id)) {
+      const due = foldStreet.get(p.id)! <= streetIdx();
+      if (facing) action = due && has("fold") ? { type: "fold" } : has("call") ? { type: "call" } : null;
+      else action = has("check") ? { type: "check" } : null;
+    } else {
+      const makeBet = () => {
+        const bet = has("bet");
+        const raise = has("raise");
+        if (bet) {
+          const to = Math.max(bet.minTo!, Math.ceil((state.potTotal() * pick(rng, [0.33, 0.5, 0.66, 0.75])) / unit) * unit);
+          return { type: "bet" as const, to: Math.min(cap(to), bet.maxTo!) };
+        }
+        if (raise && state.raisesThisStreet < 2) {
+          const to = Math.max(raise.minTo!, Math.ceil((state.currentBet * pick(rng, [2.5, 3])) / unit) * unit);
+          return { type: "raise" as const, to: Math.min(cap(to), raise.maxTo!) };
+        }
+        return null;
+      };
+      if (pendingFolderNotFacing()) action = makeBet();
+      if (!action && !facing && rng() < 0.25 && state.raisesThisStreet === 0) action = makeBet();
+      if (!action && facing && rng() < 0.08) action = makeBet();
+      if (!action) action = facing ? (has("call") ? { type: "call" } : null) : { type: "check" };
+    }
+    if (!action) return null;
+    if ((action.type === "bet" || action.type === "raise") && (action.to === undefined || action.to <= state.currentBet)) action = facing ? { type: "call" } : { type: "check" };
+    state.apply(i, action);
+  }
+  const alive = state.players.filter((p) => !p.folded).map((p) => p.id);
+  if (alive.length !== showdown.size || alive.some((id) => !showdown.has(id))) return null;
+  if (state.street !== "river") return null;
+  return [...state.log];
 }
 
 /* ------------------------------------------------------------------ */

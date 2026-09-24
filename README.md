@@ -35,7 +35,7 @@ answer is always recomputed by the evaluator / calculators.
 
 Conventions: bet/raise amounts are **"to"** amounts (the player's total on that street).
 
-Bets are shown on the table, not in a text log: POT replays the hand (each player's bet appears in front of them, bets are collected into a hidden pot at the end of each street, uncalled bets are returned; the answer timer starts when the playback ends), and SIDE POT shows each player's total bet in front of them. The text action log with amounts is only available after answering (`src/engine/playback.ts`).
+WINNER replays a full hand at a 6–9 handed table (bets, folds, flop / turn / river); only the 2–4 players who reach showdown turn their cards up, and the question starts there. Bets are shown on the table, not in a text log: POT replays the hand (each player's bet appears in front of them, bets are collected into a hidden pot at the end of each street, uncalled bets are returned; the answer timer starts when the playback ends), and SIDE POT shows each player's total bet in front of them. The text action log with amounts is only available after answering (`src/engine/playback.ts`).
 
 Settings (training setup screen): player count (AUTO by level, or fixed 2–9), ante (none / BB ante = 1 BB / everyone = 1/8 BB — antes are dead money added to the main pot), and the board-card step for HAND READING and WINNER (after naming the hand or the winner, push up the community cards that play; any equivalent selection is accepted).
 

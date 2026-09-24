@@ -1,23 +1,19 @@
 "use client";
 import { useEffect, useMemo, useState } from "react";
-import { FastForward, RotateCcw } from "lucide-react";
 import type { PotScenario } from "@/engine/scenarioTypes";
 import { buildPlaybackFrames } from "@/engine/playback";
 import { PokerTable } from "@/components/PokerTable";
 import { BetBadge } from "@/components/Chips";
 import { CardBack } from "@/components/PlayingCard";
 import { NumberInput } from "@/components/NumberInput";
-import { Button } from "@/components/ui/button";
 import { Panel, Label } from "@/components/ui/panel";
-import { statsStore, useStats } from "@/lib/statsStore";
 import { cn, formatChips } from "@/lib/utils";
 import { ActionLog } from "./ActionLog";
 import { ModeLayout, Question } from "./ModeLayout";
 import { usePlayback } from "./usePlayback";
+import { PlaybackSeat, ReplayControls, STREET_LABEL, usePlaybackSpeed } from "./Replay";
 import type { ModeViewProps } from "./types";
 
-const STREET_LABEL = { preflop: "PREFLOP", flop: "FLOP", turn: "TURN", river: "RIVER" } as const;
-const ACTION_WORD: Partial<Record<string, string>> = { fold: "FOLD", check: "CHECK", call: "CALL", bet: "BET", raise: "RAISE", allin: "ALL-IN" };
 
 /**
  * The hand is replayed on the table: each player pushes chips in front of them, bets are
@@ -25,8 +21,7 @@ const ACTION_WORD: Partial<Record<string, string>> = { fold: "FOLD", check: "CHE
  * dealer counts the chips. The answer timer starts when the playback ends.
  */
 export function PotMode({ scenario, answered, onAnswer, verdict, startTimer }: ModeViewProps<PotScenario>) {
-  const stats = useStats();
-  const speed = stats?.settings.playbackSpeed ?? 1;
+  const speed = usePlaybackSpeed();
   const frames = useMemo(() => buildPlaybackFrames(scenario.players, scenario.blinds, scenario.actions), [scenario]);
   const { frame, prev, done, skip, replay } = usePlayback(frames, speed);
   const [value, setValue] = useState("");
@@ -72,67 +67,28 @@ export function PotMode({ scenario, answered, onAnswer, verdict, startTimer }: M
           {answered && <div className="rounded bg-black/40 px-2 text-sm font-bold tabular text-brass">POT {formatChips(scenario.answer)}</div>}
         </div>
       }
-      seats={scenario.players.map((p) => {
-        const folded = view.folded.includes(p.id);
-        const allIn = view.allIn.includes(p.id);
-        const acting = view.actor === p.id && !done;
-        const word = acting && view.actionType ? ACTION_WORD[view.actionType] : view.returnedTo === p.id ? "RETURN" : null;
-        return (
-          <div
-            key={p.id}
-            className={cn(
-              "relative flex min-w-14 flex-col items-center gap-0.5 rounded-lg border border-line bg-ink/90 px-2 py-1 transition-opacity",
-              folded && "opacity-40",
-              acting && "border-brass ring-2 ring-brass/60",
-            )}
-          >
-            <div className="whitespace-nowrap text-[11px] font-bold tracking-wider">{p.position}</div>
-            {!folded && (
-              <div className="flex gap-0.5">
-                <CardBack size="xs" />
-                <CardBack size="xs" />
-              </div>
-            )}
-            {allIn && <div className="text-[9px] font-black tracking-[0.2em] text-bad">ALL-IN</div>}
-            {word && (
-              <div className={cn("animate-pop absolute -top-3 rounded-full px-2 py-0.5 text-[10px] font-black tracking-widest", word === "FOLD" ? "bg-line text-muted" : word === "ALL-IN" ? "bg-bad text-ink" : "bg-brass text-ink")}>
-                {word}
-              </div>
-            )}
-          </div>
-        );
-      })}
+      seats={scenario.players.map((p) => (
+        <PlaybackSeat
+          key={p.id}
+          id={p.id}
+          label={p.position}
+          view={view}
+          done={done}
+          cards={
+            <div className="flex gap-0.5">
+              <CardBack size="xs" />
+              <CardBack size="xs" />
+            </div>
+          }
+        />
+      ))}
       bets={scenario.players.map((p) => (view.fronts[p.id] > 0 ? <BetBadge amount={view.fronts[p.id]} size={many ? "sm" : "md"} /> : null))}
     />
   );
 
   const panel = (
     <>
-      <Panel className="p-3 sm:p-4">
-        <div className="flex items-center gap-2">
-          {!done ? (
-            <Button size="sm" variant="secondary" onClick={skip}>
-              <FastForward className="h-4 w-4" /> SKIP
-            </Button>
-          ) : (
-            <Button size="sm" variant="secondary" onClick={replay}>
-              <RotateCcw className="h-4 w-4" /> REPLAY
-            </Button>
-          )}
-          <div className="ml-auto flex overflow-hidden rounded-lg border border-line">
-            {([1, 2, 3] as const).map((s) => (
-              <button
-                key={s}
-                type="button"
-                onClick={() => statsStore.setPlaybackSpeed(s)}
-                className={cn("h-9 w-11 text-xs font-bold", s === speed ? "bg-brass/15 text-brass" : "text-muted hover:text-text")}
-              >
-                {s}x
-              </button>
-            ))}
-          </div>
-        </div>
-      </Panel>
+      <ReplayControls done={done} skip={skip} replay={replay} />
       <Panel className="p-3 sm:p-4">
         <Question sub={done ? `LEVEL ${scenario.level} · ${STREET_LABEL[scenario.askStreet]} 終了時点（集めたポット＋各自の前のベット）` : "アクション再生中… 終わったら計測開始"}>
           POTはいくら？

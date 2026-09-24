@@ -1,26 +1,39 @@
 "use client";
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import type { Card } from "@/engine/cards";
 import { boardCardsInBestFive } from "@/engine/boardSelection";
 import { describeHand, handName } from "@/engine/handEvaluator";
+import { buildPlaybackFrames } from "@/engine/playback";
 import type { WinnerScenario } from "@/engine/scenarioTypes";
-import { CardRow } from "@/components/PlayingCard";
+import { CardBack, CardRow } from "@/components/PlayingCard";
 import { PokerTable } from "@/components/PokerTable";
+import { BetBadge } from "@/components/Chips";
 import { Label, Panel } from "@/components/ui/panel";
-import { cn } from "@/lib/utils";
+import { cn, formatChips } from "@/lib/utils";
 import { ChoiceList } from "./ChoiceList";
 import { BoardCards, CardStepPanel, PartsResult, PickedSummary, useBoardCardStep } from "./BoardCardStep";
 import { ModeLayout, Question } from "./ModeLayout";
+import { PlaybackSeat, ReplayControls, STREET_LABEL, usePlaybackSpeed } from "./Replay";
+import { usePlayback } from "./usePlayback";
 import type { ModeViewProps } from "./types";
 
 /**
- * Step 1: who wins (or SPLIT).
- * Step 2 (optional): push up the board cards that play in the winning hand, like a dealer does.
+ * The hand is played out on a full table (bets, folds, flop / turn / river). At showdown the
+ * remaining players turn their cards up.
+ * Step 1: who wins (or SPLIT). Step 2 (optional): push up the board cards that play.
+ * The answer timer starts at showdown.
  */
-export function WinnerMode({ scenario, answered, onAnswer, verdict }: ModeViewProps<WinnerScenario>) {
+export function WinnerMode({ scenario, answered, onAnswer, verdict, startTimer }: ModeViewProps<WinnerScenario>) {
+  const speed = usePlaybackSpeed();
+  const frames = useMemo(() => buildPlaybackFrames(scenario.table, scenario.blinds, scenario.actions), [scenario]);
+  const { frame, prev, done, skip, replay } = usePlayback(frames, speed);
+  useEffect(() => {
+    if (done) startTimer();
+  }, [done, startTimer]);
+
   const [picked, setPicked] = useState<string | null>(null);
   const r = scenario.result;
-  const nameOf = (id: string) => scenario.players.find((p) => p.id === id)?.name ?? id;
+  const nameOf = (id: string) => scenario.table.find((p) => p.id === id)?.position ?? id;
   const inCardStep = picked !== null && !answered;
 
   const choices = useMemo(
@@ -41,35 +54,62 @@ export function WinnerMode({ scenario, answered, onAnswer, verdict }: ModeViewPr
     useCallback(() => setPicked(null), []),
   );
 
-  const winnerEntries = r.entries.filter((e) => e.rank === 1);
-  const winHand = winnerEntries[0].hand;
+  // Showdown = the playback reached its last frame (a replay hides the cards again).
+  const showdown = done;
+  const collecting = frame.phase === "collect" && prev !== null;
+  const view = collecting ? prev! : frame;
+  const winHand = r.entries.filter((e) => e.rank === 1)[0].hand;
   const trueBoardCards = boardCardsInBestFive(scenario.board, winHand);
   const userKey = answered?.answer.mode === "winner" ? answered.answer.key : null;
   const userCards = answered?.answer.mode === "winner" ? answered.answer.boardCards ?? [] : [];
-  const n = scenario.players.length;
-  const many = n >= 5;
-  const huge = n >= 7;
+  const n = scenario.table.length;
+  const many = n >= 7;
+  const inShowdown = (id: string) => scenario.players.some((p) => p.id === id);
 
   const table = (
     <PokerTable
+      collecting={collecting}
       center={
         <>
-          <Label className={cn("text-felt-line", inCardStep && "text-brass")}>{inCardStep ? "TAP TO RAISE" : "BOARD"}</Label>
-          <BoardCards board={scenario.board} raised={answered ? trueBoardCards : step.raised} interactive={inCardStep} onToggle={step.toggle} size={many ? "md" : "lg"} />
+          <div className="flex items-center gap-2">
+            <Label className={cn("text-felt-line", inCardStep && "text-brass")}>{inCardStep ? "TAP TO RAISE" : showdown ? "SHOWDOWN" : STREET_LABEL[view.street]}</Label>
+            {view.pot > 0 && !showdown && <span className="rounded-full bg-ink/70 px-2 text-[11px] font-bold tabular text-text/80">POT {formatChips(view.pot)}</span>}
+          </div>
+          {showdown ? (
+            <BoardCards board={scenario.board} raised={answered ? trueBoardCards : step.raised} interactive={inCardStep} onToggle={step.toggle} size="md" />
+          ) : (
+            <div className="flex min-h-[3.9rem] gap-1 pt-3 sm:min-h-20 sm:gap-1.5">
+              <CardRow cards={scenario.board.slice(0, view.boardCount)} size="md" />
+            </div>
+          )}
         </>
       }
-      seats={scenario.players.map((p) => {
-        const entry = r.entries.find((e) => e.id === p.id)!;
-        const won = answered && entry.rank === 1;
-        const isPicked = inCardStep && picked === p.id;
+      seats={scenario.table.map((p) => {
+        const entry = r.entries.find((e) => e.id === p.id);
+        const won = !!answered && entry?.rank === 1;
+        const faceUp = showdown && inShowdown(p.id);
         return (
-          <div key={p.id} className={cn("flex flex-col items-center gap-1 rounded-xl p-1 transition-colors", won && "bg-brass/20 ring-2 ring-brass", isPicked && "ring-2 ring-brass/70")}>
-            <CardRow cards={p.hole} size={many ? "sm" : "md"} highlight={answered && won ? entry.hand.bestFive : undefined} />
-            <div className={cn("whitespace-nowrap rounded-full bg-ink/85 px-2 py-0.5 text-[10px] font-bold tracking-[0.12em] sm:text-[11px]", won && "text-brass")}>{huge ? `P${p.id.slice(1)}` : p.name}</div>
-            {answered && !huge && <div className="max-w-24 truncate text-center text-[10px] text-text/80 sm:max-w-32 sm:text-[11px]">{handName(entry.hand)}</div>}
-          </div>
+          <PlaybackSeat
+            key={p.id}
+            id={p.id}
+            label={p.position}
+            view={view}
+            done={done}
+            highlight={won || (inCardStep && picked === p.id)}
+            cards={
+              faceUp ? (
+                <CardRow cards={p.hole} size={many ? "xs" : "sm"} highlight={won ? entry!.hand.bestFive : undefined} />
+              ) : (
+                <div className="flex gap-0.5">
+                  <CardBack size="xs" />
+                  <CardBack size="xs" />
+                </div>
+              )
+            }
+          />
         );
       })}
+      bets={scenario.table.map((p) => (!showdown && view.fronts[p.id] > 0 ? <BetBadge amount={view.fronts[p.id]} size={many ? "sm" : "md"} /> : null))}
     />
   );
 
@@ -78,12 +118,18 @@ export function WinnerMode({ scenario, answered, onAnswer, verdict }: ModeViewPr
 
   const panel = (
     <>
-      {inCardStep ? (
+      {!answered && <ReplayControls done={done} skip={skip} replay={replay} />}
+      {!showdown ? (
+        <Panel className="p-3 sm:p-4">
+          <Question sub={`LEVEL ${scenario.level} · ${n}人卓`}>WINNERは？</Question>
+          <div className="mt-2 text-sm text-muted">ハンド進行中… ショーダウンで残ったプレイヤーの中から勝者を選びます（計測はショーダウンから）</div>
+        </Panel>
+      ) : inCardStep ? (
         // Winner already chosen: collapse the list so the board and confirm stay on screen.
         <PickedSummary label="WINNER" value={picked === "SPLIT" ? "SPLIT" : nameOf(picked!)} onBack={step.back} />
       ) : (
         <Panel className="p-3 sm:p-4">
-          <Question sub={`LEVEL ${scenario.level} · ${n} players`}>WINNERは？</Question>
+          <Question sub={`LEVEL ${scenario.level} · ${n}人卓 · ショーダウン ${scenario.players.length}人`}>WINNERは？</Question>
           <div className="mt-3">
             <ChoiceList choices={choices} onPick={pick} answeredKey={userKey} correctKey={answered ? scenario.correctKey : null} />
           </div>
@@ -140,7 +186,7 @@ export function WinnerMode({ scenario, answered, onAnswer, verdict }: ModeViewPr
                 {[...r.entries]
                   .sort((a, b) => a.rank - b.rank)
                   .map((e) => (
-                    <li key={e.id} className={cn("grid grid-cols-[1.5rem_5.5rem_1fr] gap-1", e.rank === 1 ? "text-brass" : "text-text/75")}>
+                    <li key={e.id} className={cn("grid grid-cols-[1.5rem_4.5rem_1fr] gap-1", e.rank === 1 ? "text-brass" : "text-text/75")}>
                       <span className="tabular text-muted">{e.rank}.</span>
                       <span className="font-semibold">{nameOf(e.id)}</span>
                       <span className="text-[13px] leading-snug">{describeHand(e.hand)}</span>

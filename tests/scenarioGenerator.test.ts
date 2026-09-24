@@ -6,7 +6,10 @@ import {
   generateSidePotScenario,
   generateWinnerScenario,
   WINNER_PLAYERS,
+  WINNER_SHOWDOWN,
 } from "@/engine/scenarioGenerator";
+import { HandState } from "@/engine/bettingEngine";
+import { buildPlaybackFrames } from "@/engine/playback";
 import { boardCardsInBestFive, isValidBoardSelection } from "@/engine/boardSelection";
 import { evaluatePlayer, HandCategory } from "@/engine/handEvaluator";
 import { resolveShowdown } from "@/engine/handComparator";
@@ -50,14 +53,36 @@ describe("scenarioGenerator: HAND READING", () => {
 });
 
 describe("scenarioGenerator: WINNER", () => {
-  it.each(LEVELS)("level %i: player count in level range, no dup cards, correct key from comparator, no partial split", (level) => {
+  it.each(LEVELS)("level %i: table/showdown sizes, legal hand to showdown, no dup cards, correct key, no partial split", (level) => {
     const rng = seededRng(100 + level);
     for (let i = 0; i < N; i++) {
       const s = generateWinnerScenario(level, { rng });
       const [min, max] = WINNER_PLAYERS[level];
-      expect(s.players.length).toBeGreaterThanOrEqual(min);
-      expect(s.players.length).toBeLessThanOrEqual(max);
-      assertNoDuplicates([...s.board, ...s.players.flatMap((p) => p.hole)]);
+      expect(s.table.length).toBeGreaterThanOrEqual(min);
+      expect(s.table.length).toBeLessThanOrEqual(max);
+      const [smin, smax] = WINNER_SHOWDOWN[level];
+      expect(s.players.length).toBeGreaterThanOrEqual(Math.min(smin, s.table.length));
+      expect(s.players.length).toBeLessThanOrEqual(smax);
+      assertNoDuplicates([...s.board, ...s.table.flatMap((p) => p.hole)]);
+      // Showdown players are table seats with the same cards, named by position.
+      for (const p of s.players) {
+        const seat = s.table.find((t) => t.id === p.id)!;
+        expect(seat.hole).toEqual(p.hole);
+        expect(p.name).toBe(seat.position);
+      }
+      // The action is legal (strict replay through the betting engine) and only the showdown players remain.
+      const st = new HandState(s.table, s.blinds);
+      for (const a of s.actions.filter((x) => !["post_sb", "post_bb", "ante"].includes(x.type))) {
+        while (st.nextToAct() === -1) expect(st.advanceStreet()).toBe(true);
+        const idx = st.nextToAct();
+        expect(st.players[idx].id).toBe(a.playerId);
+        st.apply(idx, { type: a.type as "fold", to: a.amount });
+      }
+      expect(st.street).toBe("river");
+      expect(st.nextToAct()).toBe(-1);
+      expect(st.activePlayers.map((p) => p.id).sort()).toEqual(s.players.map((p) => p.id).sort());
+      const frames = buildPlaybackFrames(s.table, s.blinds, s.actions);
+      expect(frames[frames.length - 1].boardCount).toBe(5);
       const r = resolveShowdown(s.board, s.players);
       expect(r.winners.length === 1 || r.winners.length === s.players.length).toBe(true);
       expect(s.correctKey).toBe(r.isSplit ? "SPLIT" : r.winners[0]);
@@ -140,17 +165,18 @@ describe("scenarioGenerator: player count, ante and board-card selection", () =>
   it("fixed player counts are honoured (WINNER 2-9, POT 2-9, SIDE POT 3-9)", () => {
     const rng = seededRng(900);
     for (let n = 2; n <= 9; n++) {
-      expect(generateWinnerScenario(3, { rng, players: n }).players).toHaveLength(n);
+      expect(generateWinnerScenario(3, { rng, players: n }).table).toHaveLength(n);
       expect(generatePotScenario(3, { rng, players: n }).players).toHaveLength(n);
       if (n >= 3) expect(generateSidePotScenario(3, { rng, players: n }).players).toHaveLength(n);
     }
   });
-  it("9-player WINNER splits are complete splits", () => {
+  it("9-handed WINNER splits are complete splits among the showdown players", () => {
     const rng = seededRng(901);
     for (let i = 0; i < 20; i++) {
       const s = generateWinnerScenario(5, { rng, players: 9, focus: "split-pot" });
-      expect(s.result.winners).toHaveLength(9);
-      assertNoDuplicates([...s.board, ...s.players.flatMap((p) => p.hole)]);
+      expect(s.table).toHaveLength(9);
+      expect(s.result.winners).toHaveLength(s.players.length);
+      assertNoDuplicates([...s.board, ...s.table.flatMap((p) => p.hole)]);
     }
   });
   it("the engine's own board cards are always a valid selection for every winner", () => {
