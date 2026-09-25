@@ -102,6 +102,7 @@ export function TrainingSession({ modeKey }: { modeKey: SessionModeKey }) {
         score: score.total,
         skills: scenario.skills,
         sessionId: session.current.id,
+        parts: grade.parts,
       };
       statsStore.recordAnswer(record);
       setRecords((rs) => [...rs, record]);

@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { addRecord, LocalStorageStatsRepository, migrate, STORAGE_KEY } from "@/stats/repository";
 import { emptyStats, SCHEMA_VERSION, type AnswerRecord } from "@/stats/types";
-import { dealerRating, gradeOf, longestStreak, summarize, todayRecords, weakestSkill, weaknesses, byLevel } from "@/stats/aggregate";
+import { bySkill, dealerRating, gradeOf, longestStreak, summarize, todayRecords, weakestSkill, weaknesses, byLevel } from "@/stats/aggregate";
 
 let n = 0;
 const rec = (p: Partial<AnswerRecord>): AnswerRecord => ({
@@ -70,5 +70,27 @@ describe("stats aggregate", () => {
     expect(w.map((x) => x.key)).toContain("full-house-comparison");
     expect(w.map((x) => x.key)).not.toContain("flush-detection");
     expect(weakestSkill(rs)).toBe("Side Pot");
+  });
+});
+
+describe("board-card selection tracking", () => {
+  it("scores the card step separately from the main question", () => {
+    const rs = [
+      // Right hand, wrong cards (overall incorrect)
+      ...Array.from({ length: 4 }, () => rec({ mode: "hand", correct: false, skills: ["straight-detection"], parts: { category: true, cards: false } })),
+      // Both right
+      rec({ mode: "winner", correct: true, skills: ["kicker-comparison"], parts: { winner: true, cards: true } }),
+    ];
+    const rows = Object.fromEntries(bySkill(rs).map((r) => [r.skill, r.summary]));
+    // Straight detection is judged on the hand only → 100%.
+    expect(rows["straight-detection"].accuracy).toBe(1);
+    expect(rows["board-card-selection"]).toMatchObject({ total: 5, correct: 1 });
+    const weak = weaknesses(rs);
+    expect(weak.map((w) => w.key)).toContain("board-card-selection");
+    expect(weak.map((w) => w.key)).not.toContain("straight-detection");
+  });
+  it("older records without parts still count by overall correctness", () => {
+    const rows = bySkill([rec({ correct: false, skills: ["flush-detection"] })]);
+    expect(rows[0].summary.accuracy).toBe(0);
   });
 });

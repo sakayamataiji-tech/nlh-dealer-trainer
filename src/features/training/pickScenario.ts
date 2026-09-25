@@ -10,11 +10,14 @@ import type { SessionModeKey } from "./modeMeta";
 export function pickScenario(modeKey: SessionModeKey, stats: StatsData, rng: Rng = Math.random): Scenario {
   const levelOf = (m: TrainingMode): Level => stats.settings.levels[m];
   // Apply the user's settings (player count, ante, board-card step) to every generated scenario.
-  const generateScenario = (m: TrainingMode, level: Level, opts: GenerateOptions): Scenario => {
+  const playersOf = (m: TrainingMode): number | undefined => {
     const p = m === "hand" ? "auto" : stats.settings.players[m];
+    return p === "auto" ? undefined : p;
+  };
+  const generateScenario = (m: TrainingMode, level: Level, opts: GenerateOptions): Scenario => {
     return generate(m, level, {
       ...opts,
-      players: p === "auto" ? undefined : p,
+      players: playersOf(m),
       ante: stats.settings.ante,
       selectBoardCards: stats.settings.selectBoardCards,
     });
@@ -36,6 +39,8 @@ export function pickScenario(modeKey: SessionModeKey, stats: StatsData, rng: Rng
     }
     const skill = item.key as SkillTag;
     const m = pick(rng, skillModes(skill));
+    // The board-card step is a question part, not a scenario property: just make sure it is asked.
+    if (skill === "board-card-selection") return generate(m, levelOf(m), { rng, selectBoardCards: true, players: m === "hand" ? undefined : playersOf(m) });
     return generateScenario(m, levelOf(m), { rng, focus: skill });
   }
   return generateScenario(modeKey, levelOf(modeKey), { rng });

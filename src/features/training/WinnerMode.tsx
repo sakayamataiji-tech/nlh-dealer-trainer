@@ -28,7 +28,9 @@ export function WinnerMode({ scenario, answered, onAnswer, verdict, startTimer }
   const frames = useMemo(() => buildPlaybackFrames(scenario.table, scenario.blinds, scenario.actions, { runoutTo: "river" }), [scenario]);
   const { frame, prev, done, skip, replay } = usePlayback(frames, speed);
   useEffect(() => {
-    if (done) startTimer();
+    if (!done) return;
+    startTimer();
+    if (window.matchMedia("(max-width: 639px)").matches) window.scrollTo({ top: 0, behavior: "smooth" });
   }, [done, startTimer]);
 
   const [picked, setPicked] = useState<string | null>(null);
@@ -69,6 +71,8 @@ export function WinnerMode({ scenario, answered, onAnswer, verdict, startTimer }
   const table = (
     <PokerTable
       collecting={collecting}
+      // Phones at showdown: only the players still in the hand, so hands + board + choices fit one screen.
+      hideOnMobile={showdown ? scenario.table.map((t) => !inShowdown(t.id)) : undefined}
       center={
         <>
           <div className="flex items-center gap-2">
@@ -118,7 +122,7 @@ export function WinnerMode({ scenario, answered, onAnswer, verdict, startTimer }
 
   const panel = (
     <>
-      {!answered && <ReplayControls done={done} skip={skip} replay={replay} />}
+      {!answered && !showdown && <ReplayControls done={done} skip={skip} replay={replay} />}
       {!showdown ? (
         <Panel className="p-3 sm:p-4">
           <Question sub={`LEVEL ${scenario.level} · ${n}人卓`}>WINNERは？</Question>
@@ -135,6 +139,7 @@ export function WinnerMode({ scenario, answered, onAnswer, verdict, startTimer }
           </div>
         </Panel>
       )}
+      {showdown && !answered && !inCardStep && <ReplayControls done={done} skip={skip} replay={replay} />}
       {inCardStep && (
         <CardStepPanel
           title={`${picked === "SPLIT" ? "勝った役" : nameOf(picked!)} の役に使うボードのカードは？`}

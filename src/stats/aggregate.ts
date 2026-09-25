@@ -41,9 +41,27 @@ export function byLevel(records: readonly AnswerRecord[]): Record<Level, Summary
   return Object.fromEntries(LEVELS.map((l) => [l, summarize(records.filter((r) => r.level === l))])) as Record<Level, Summary>;
 }
 
+/** Result of the main question (hand category / winner), ignoring the board-card step. */
+function mainPartCorrect(r: AnswerRecord): boolean {
+  return r.parts?.category ?? r.parts?.winner ?? r.correct;
+}
+
+/**
+ * Accuracy per skill. Scenario skills (e.g. Straight Detection) are judged on the main
+ * question only; the board-card step is tracked on its own as "board-card-selection".
+ */
 export function bySkill(records: readonly AnswerRecord[]): { skill: SkillTag; label: string; summary: Summary }[] {
   const map = new Map<SkillTag, AnswerRecord[]>();
-  for (const r of records) for (const s of r.skills) map.set(s, [...(map.get(s) ?? []), r]);
+  const add = (s: SkillTag, r: AnswerRecord) => {
+    const list = map.get(s);
+    if (list) list.push(r);
+    else map.set(s, [r]);
+  };
+  for (const r of records) {
+    const main = mainPartCorrect(r);
+    for (const s of r.skills) add(s, main === r.correct ? r : { ...r, correct: main });
+    if (r.parts?.cards !== undefined) add("board-card-selection", { ...r, correct: r.parts.cards });
+  }
   return [...map.entries()].map(([skill, rs]) => ({ skill, label: SKILLS[skill].label, summary: summarize(rs) }));
 }
 

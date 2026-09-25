@@ -38,6 +38,11 @@ export interface AnswerRecord {
   score: number;
   skills: SkillTag[];
   sessionId: string;
+  /**
+   * Per-part result for two-step questions, e.g. { category, cards } (HAND) or { winner, cards } (WINNER).
+   * Older records have none; they count with `correct`.
+   */
+  parts?: Record<string, boolean>;
 }
 
 export interface SessionSummary {
