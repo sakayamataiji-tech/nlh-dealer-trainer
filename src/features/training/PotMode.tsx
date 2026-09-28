@@ -8,6 +8,7 @@ import { CardBack } from "@/components/PlayingCard";
 import { NumberInput } from "@/components/NumberInput";
 import { Panel, Label } from "@/components/ui/panel";
 import { cn, formatChips } from "@/lib/utils";
+import { useI18n } from "@/i18n";
 import { ActionLog } from "./ActionLog";
 import { ModeLayout, Question } from "./ModeLayout";
 import { usePlayback } from "./usePlayback";
@@ -22,6 +23,7 @@ import type { ModeViewProps } from "./types";
  */
 export function PotMode({ scenario, answered, onAnswer, verdict, startTimer }: ModeViewProps<PotScenario>) {
   const speed = usePlaybackSpeed();
+  const { t } = useI18n();
   const frames = useMemo(() => buildPlaybackFrames(scenario.players, scenario.blinds, scenario.actions), [scenario]);
   const { frame, prev, done, skip, replay } = usePlayback(frames, speed);
   const [value, setValue] = useState("");
@@ -90,8 +92,8 @@ export function PotMode({ scenario, answered, onAnswer, verdict, startTimer }: M
     <>
       <ReplayControls done={done} skip={skip} replay={replay} />
       <Panel className="p-3 sm:p-4">
-        <Question sub={done ? `LEVEL ${scenario.level} · ${STREET_LABEL[scenario.askStreet]} 終了時点（集めたポット＋各自の前のベット）` : "アクション再生中… 終わったら計測開始"}>
-          POTはいくら？
+        <Question sub={done ? t.potSub(scenario.level, STREET_LABEL[scenario.askStreet]) : t.potPlaying}>
+          {t.potQ}
         </Question>
         {!answered && (
           <div className={cn("mt-2", !done && "pointer-events-none opacity-40")}>
@@ -120,14 +122,14 @@ export function PotMode({ scenario, answered, onAnswer, verdict, startTimer }: M
                     <td className="py-0.5 font-semibold">{nameOf(b.playerId)}</td>
                     <td className="text-right">{formatChips(b.inPot)}</td>
                     <td className="w-28 pl-2 text-right text-xs text-muted">
-                      {b.returned > 0 ? `(${formatChips(b.contributed)} − ${formatChips(b.returned)} 返却)` : b.folded ? "fold" : b.allIn ? "all-in" : ""}
+                      {b.returned > 0 ? t.returned(formatChips(b.contributed), formatChips(b.returned)) : b.folded ? "fold" : b.allIn ? "all-in" : ""}
                     </td>
                   </tr>
                 ))}
                 {r.anteTotal > 0 && (
                   <tr className="text-xs text-muted">
                     <td className="pt-1" colSpan={3}>
-                      うちアンティ {formatChips(r.anteTotal)}（{scenario.blinds.anteType === "bb" ? "BBアンティ" : `${formatChips(scenario.blinds.ante)} × ${scenario.players.length}人`}）
+                      {t.anteIncluded(formatChips(r.anteTotal))} ({scenario.blinds.anteType === "bb" ? t.anteBB : t.anteAll(formatChips(scenario.blinds.ante), scenario.players.length)})
                     </td>
                   </tr>
                 )}
@@ -146,7 +148,7 @@ export function PotMode({ scenario, answered, onAnswer, verdict, startTimer }: M
               ))}
             </div>
             <button type="button" className="mt-2 text-xs text-muted underline-offset-2 hover:underline" onClick={() => setShowLog((v) => !v)}>
-              {showLog ? "ACTION LOG を隠す" : "ACTION LOG（金額つき）を表示"}
+              {showLog ? t.logHide : t.logShow}
             </button>
             {showLog && (
               <div className="mt-1">

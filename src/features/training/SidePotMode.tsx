@@ -7,11 +7,13 @@ import { BetBadge, ChipAmount } from "@/components/Chips";
 import { NumberInput } from "@/components/NumberInput";
 import { Panel, Label } from "@/components/ui/panel";
 import { cn, formatChips } from "@/lib/utils";
+import { useI18n } from "@/i18n";
 import { ActionLog } from "./ActionLog";
 import { ModeLayout, Question } from "./ModeLayout";
 import type { ModeViewProps } from "./types";
 
 export function SidePotMode({ scenario, answered, onAnswer, verdict }: ModeViewProps<SidePotScenario>) {
+  const { t } = useI18n();
   const [step, setStep] = useState(0);
   const [value, setValue] = useState("");
   const [amounts, setAmounts] = useState<Record<string, number>>({});
@@ -69,7 +71,7 @@ export function SidePotMode({ scenario, answered, onAnswer, verdict }: ModeViewP
   const panel = (
     <>
       <Panel className="p-3 sm:p-4">
-        <Question sub={`LEVEL ${scenario.level} · 各プレイヤーの前の金額 = そのハンドのベット総額${pr.anteTotal > 0 ? "（中央のアンティはメインポットへ）" : ""}`}>{q && !answered ? `${q.label} はいくら？` : "SIDE POT"}</Question>
+        <Question sub={t.sidepotSub(scenario.level, pr.anteTotal > 0)}>{q && !answered ? t.howMuch(q.label) : "SIDE POT"}</Question>
         {!answered && (
           <>
             <div className="mt-2 flex flex-wrap gap-1.5">
@@ -87,7 +89,7 @@ export function SidePotMode({ scenario, answered, onAnswer, verdict }: ModeViewP
         )}
         {answered && (
           <button type="button" className="mt-2 text-xs text-muted underline-offset-2 hover:underline" onClick={() => setShowLog((v) => !v)}>
-            {showLog ? "ACTION LOG を隠す" : "ACTION LOG（金額つき）を表示"}
+            {showLog ? t.logHide : t.logShow}
           </button>
         )}
         {answered && showLog && (
@@ -115,7 +117,7 @@ export function SidePotMode({ scenario, answered, onAnswer, verdict }: ModeViewP
                   <div className="text-2xl font-black tabular text-brass">{formatChips(p.amount)}</div>
                   <div className="text-xs text-muted">
                     Eligible <span className="font-semibold text-text">{p.eligible.map(short).join(" / ")}</span>
-                    {p.deadMoney > 0 && <span> · うちアンティ {formatChips(p.deadMoney)}</span>}
+                    {p.deadMoney > 0 && <span> · {t.anteIncluded(formatChips(p.deadMoney))}</span>}
                   </div>
                 </div>
               );
@@ -126,7 +128,7 @@ export function SidePotMode({ scenario, answered, onAnswer, verdict }: ModeViewP
               return (
                 <div key={key} className={cn("rounded-lg border border-dashed p-2", ok ? "border-line" : "border-bad/50")}>
                   <div className="flex items-baseline justify-between">
-                    <Label>UNCALLED → {nameOf(rt.playerId)} に返却</Label>
+                    <Label>{t.returnTo(nameOf(rt.playerId))}</Label>
                     <span className={cn("text-xs tabular", ok ? "text-good" : "text-bad")}>{formatChips(amounts[key] ?? 0)}</span>
                   </div>
                   <div className="text-xl font-black tabular">{formatChips(rt.amount)}</div>

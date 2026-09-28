@@ -10,6 +10,7 @@ import { PokerTable } from "@/components/PokerTable";
 import { BetBadge } from "@/components/Chips";
 import { Label, Panel } from "@/components/ui/panel";
 import { cn, formatChips } from "@/lib/utils";
+import { useI18n } from "@/i18n";
 import { ChoiceList } from "./ChoiceList";
 import { BoardCards, CardStepPanel, PartsResult, PickedSummary, useBoardCardStep } from "./BoardCardStep";
 import { ModeLayout, Question } from "./ModeLayout";
@@ -25,6 +26,7 @@ import type { ModeViewProps } from "./types";
  */
 export function WinnerMode({ scenario, answered, onAnswer, verdict, startTimer }: ModeViewProps<WinnerScenario>) {
   const speed = usePlaybackSpeed();
+  const { t } = useI18n();
   const frames = useMemo(() => buildPlaybackFrames(scenario.table, scenario.blinds, scenario.actions, { runoutTo: "river" }), [scenario]);
   const { frame, prev, done, skip, replay } = usePlayback(frames, speed);
   useEffect(() => {
@@ -125,15 +127,15 @@ export function WinnerMode({ scenario, answered, onAnswer, verdict, startTimer }
       {!answered && !showdown && <ReplayControls done={done} skip={skip} replay={replay} />}
       {!showdown ? (
         <Panel className="p-3 sm:p-4">
-          <Question sub={`LEVEL ${scenario.level} · ${n}人卓`}>WINNERは？</Question>
-          <div className="mt-2 text-sm text-muted">ハンド進行中… ショーダウンで残ったプレイヤーの中から勝者を選びます（計測はショーダウンから）</div>
+          <Question sub={t.winnerSubPlaying(scenario.level, n)}>{t.winnerQ}</Question>
+          <div className="mt-2 text-sm text-muted">{t.winnerPlayingNote}</div>
         </Panel>
       ) : inCardStep ? (
         // Winner already chosen: collapse the list so the board and confirm stay on screen.
         <PickedSummary label="WINNER" value={picked === "SPLIT" ? "SPLIT" : nameOf(picked!)} onBack={step.back} />
       ) : (
         <Panel className="p-3 sm:p-4">
-          <Question sub={`LEVEL ${scenario.level} · ${n}人卓 · ショーダウン ${scenario.players.length}人`}>WINNERは？</Question>
+          <Question sub={t.winnerSub(scenario.level, n, scenario.players.length)}>{t.winnerQ}</Question>
           <div className="mt-3">
             <ChoiceList choices={choices} onPick={pick} answeredKey={userKey} correctKey={answered ? scenario.correctKey : null} />
           </div>
@@ -142,7 +144,7 @@ export function WinnerMode({ scenario, answered, onAnswer, verdict, startTimer }
       {showdown && !answered && !inCardStep && <ReplayControls done={done} skip={skip} replay={replay} />}
       {inCardStep && (
         <CardStepPanel
-          title={`${picked === "SPLIT" ? "勝った役" : nameOf(picked!)} の役に使うボードのカードは？`}
+          title={t.cardsTitleWinner(picked === "SPLIT" ? null : nameOf(picked!))}
           count={step.raised.length}
           canSubmit={step.canSubmit}
           onSubmit={step.submit}
@@ -160,7 +162,7 @@ export function WinnerMode({ scenario, answered, onAnswer, verdict, startTimer }
                 ]}
                 example={
                   scenario.requireBoardCards && !answered.grade.parts.cards && cardsTarget && cardsTargetHand
-                    ? { label: `${nameOf(cardsTarget)} の正解例`, cards: boardCardsInBestFive(scenario.board, cardsTargetHand) }
+                    ? { label: t.exampleFor(nameOf(cardsTarget)), cards: boardCardsInBestFive(scenario.board, cardsTargetHand) }
                     : undefined
                 }
               />

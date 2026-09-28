@@ -19,6 +19,7 @@ import { LiveTimer } from "./LiveTimer";
 import { Verdict } from "./Verdict";
 import { SessionResult } from "./SessionResult";
 import { MODE_META, type SessionModeKey } from "./modeMeta";
+import { useI18n, type Messages } from "@/i18n";
 import { pickScenario } from "./pickScenario";
 import type { AnsweredState } from "./types";
 
@@ -30,6 +31,7 @@ function uid() {
 
 export function TrainingSession({ modeKey }: { modeKey: SessionModeKey }) {
   const stats = useStats();
+  const { t } = useI18n();
   const meta = MODE_META[modeKey];
   const [phase, setPhase] = useState<Phase>("setup");
   const [scenario, setScenario] = useState<Scenario | null>(null);
@@ -164,7 +166,7 @@ export function TrainingSession({ modeKey }: { modeKey: SessionModeKey }) {
         </Link>
         <div className="min-w-0 flex-1">
           <div className="truncate text-sm font-black tracking-[0.18em]">{meta.title}</div>
-          <div className="truncate text-[11px] text-muted">{meta.ja}</div>
+          <div className="truncate text-[11px] text-muted">{t.modeSub[modeKey]}</div>
         </div>
         {phase === "play" && (
           <>
@@ -199,7 +201,7 @@ export function TrainingSession({ modeKey }: { modeKey: SessionModeKey }) {
         <div className="mx-auto flex w-full max-w-lg flex-1 flex-col justify-center gap-5 py-6">
           <div className="text-center">
             <div className="text-3xl font-black tracking-[0.14em]">{meta.title}</div>
-            <div className="mt-1 text-sm text-muted">{meta.ja}</div>
+            <div className="mt-1 text-sm text-muted">{t.modeSub[modeKey]}</div>
           </div>
           {fixedMode && level && (
             <Panel className="p-4">
@@ -216,18 +218,20 @@ export function TrainingSession({ modeKey }: { modeKey: SessionModeKey }) {
                   </button>
                 ))}
               </div>
-              <div className="mt-2 text-xs text-muted">{LEVEL_HINT[fixedMode][level - 1]}</div>
+              <div className="mt-2 text-xs text-muted">{levelHints(t)[fixedMode][level - 1]}</div>
             </Panel>
           )}
           {!fixedMode && (
             <Panel className="p-4 text-sm text-muted">
               {modeKey === "weakness"
                 ? stats.records.length === 0
-                  ? "まだ成績データがありません。データが貯まるまでは4カテゴリからランダムに出題します。"
-                  : "過去の成績から正答率の低いスキルを優先して出題します。"
-                : "4カテゴリからランダムに出題します。"}
+                  ? t.weaknessNoData
+                  : t.weaknessInfo
+                : t.quickInfo}
               <div className="mt-1 text-xs">
-                難易度: 各カテゴリの設定 (HAND LV{stats.settings.levels.hand} / WINNER LV{stats.settings.levels.winner} / POT LV{stats.settings.levels.pot} / SIDE POT LV{stats.settings.levels.sidepot})
+                {t.levelsInfo(
+                  `HAND LV${stats.settings.levels.hand} / WINNER LV${stats.settings.levels.winner} / POT LV${stats.settings.levels.pot} / SIDE POT LV${stats.settings.levels.sidepot}`,
+                )}
               </div>
             </Panel>
           )}
@@ -242,7 +246,7 @@ export function TrainingSession({ modeKey }: { modeKey: SessionModeKey }) {
                   onClick={() => statsStore.setSessionLength(l)}
                   className={cn("h-12 rounded-lg border text-sm font-bold", l === length ? "border-brass bg-brass/15 text-brass" : "border-line bg-panel-2 text-muted hover:text-text")}
                 >
-                  {l === "endless" ? "ENDLESS" : `${l}問`}
+                  {l === "endless" ? "ENDLESS" : t.sessionLen(l)}
                 </button>
               ))}
             </div>
@@ -251,7 +255,7 @@ export function TrainingSession({ modeKey }: { modeKey: SessionModeKey }) {
             <Play className="h-5 w-5" /> START <Kbd className="border-ink/30 bg-transparent text-ink/70">Space</Kbd>
           </Button>
           <div className="hidden text-center text-xs text-muted md:block">
-            1〜9: 選択肢で回答 · Enter: 数字入力の決定 · Space: 次の問題
+            {t.keyHelp}
           </div>
         </div>
       )}
@@ -290,32 +294,17 @@ function renderMode(s: Scenario, answered: AnsweredState | null, onAnswer: (a: U
   }
 }
 
-const range = ([a, b]: readonly [number, number]) => (a === b ? `${a}人` : `${a}〜${b}人`);
-
-const LEVEL_HINT: Record<"hand" | "winner" | "pot" | "sidepot", string[]> = {
-  hand: ["明確な役 (Pair / Straight / Flush)", "Two Pair / Trips / Full House / Quads", "全カテゴリ + キッカー判断", "Board Play (ボードが役)", "紛らわしい状況 (Four Flush / Double Paired / Wheel 等)"],
-  winner: [
-    `${range(WINNER_PLAYERS[1])}卓 · ショーダウン${range(WINNER_SHOWDOWN[1])}`,
-    `${range(WINNER_PLAYERS[2])}卓 · ショーダウン${range(WINNER_SHOWDOWN[2])}`,
-    `${range(WINNER_PLAYERS[3])}卓 · ショーダウン${range(WINNER_SHOWDOWN[3])} · キッカー勝負多め`,
-    `${range(WINNER_PLAYERS[4])}卓 · ショーダウン${range(WINNER_SHOWDOWN[4])} · Board Play 多め`,
-    `${range(WINNER_PLAYERS[5])}卓 · ショーダウン${range(WINNER_SHOWDOWN[5])} · Counterfeit / FH比較 等`,
-  ],
-  pot: [
-    `Preflopのみ · ${range(POT_LEVELS[1].players)}`,
-    `Flopまで · ${range(POT_LEVELS[2].players)}`,
-    `Turnまで · ${range(POT_LEVELS[3].players)}`,
-    `Riverまで · ${range(POT_LEVELS[4].players)}`,
-    `Riverまで · ${range(POT_LEVELS[5].players)} · All-inあり`,
-  ],
-  sidepot: [
-    `${range(SIDEPOT_LEVELS[1].players)} · All-in`,
-    `${range(SIDEPOT_LEVELS[2].players)} · Foldあり`,
-    `${range(SIDEPOT_LEVELS[3].players)} · Side Pot 2つ以上`,
-    `${range(SIDEPOT_LEVELS[4].players)} · Postflopあり`,
-    `${range(SIDEPOT_LEVELS[5].players)} · Fold / 返却あり`,
-  ],
-};
+/** Per-level description shown under the difficulty picker (derived from the generator settings). */
+function levelHints(t: Messages): Record<"hand" | "winner" | "pot" | "sidepot", string[]> {
+  const range = ([a, b]: readonly [number, number]) => t.people(a, b);
+  const lv = [1, 2, 3, 4, 5] as const;
+  return {
+    hand: t.handHints,
+    winner: lv.map((l, i) => t.winnerHint(range(WINNER_PLAYERS[l]), range(WINNER_SHOWDOWN[l])) + t.winnerExtras[i]),
+    pot: lv.map((l, i) => `${t.potStreets[i]} · ${range(POT_LEVELS[l].players)}${l === 5 ? t.potAllIn : ""}`),
+    sidepot: lv.map((l, i) => `${range(SIDEPOT_LEVELS[l].players)}${t.sidepotExtras[i]}`),
+  };
+}
 
 const PLAYER_RANGE: Record<PlayerSettingMode, [number, number]> = { winner: [2, 9], pot: [2, 9], sidepot: [3, 9] };
 
@@ -334,6 +323,7 @@ function Chip({ active, onClick, children, className }: { active: boolean; onCli
 /** Player count / ante / board-card step, shown where they apply. */
 function SettingsPanel({ modeKey }: { modeKey: SessionModeKey }) {
   const stats = useStats();
+  const { t } = useI18n();
   if (!stats) return null;
   const s = stats.settings;
   const mixed = modeKey === "quick" || modeKey === "weakness";
@@ -345,7 +335,7 @@ function SettingsPanel({ modeKey }: { modeKey: SessionModeKey }) {
     <Panel className="flex flex-col gap-4 p-4">
       {playerMode && (
         <div>
-          <Label>Players（人数）</Label>
+          <Label>{t.playersLabel}</Label>
           <div className="mt-2 grid grid-cols-5 gap-1.5 sm:grid-cols-9">
             <Chip active={s.players[playerMode] === "auto"} onClick={() => statsStore.setPlayers(playerMode, "auto")} className="col-span-2 sm:col-span-1">
               AUTO
@@ -356,34 +346,40 @@ function SettingsPanel({ modeKey }: { modeKey: SessionModeKey }) {
               </Chip>
             ))}
           </div>
-          <div className="mt-1 text-xs text-muted">AUTO = 難易度に合わせた人数</div>
+          <div className="mt-1 text-xs text-muted">{t.autoNote}</div>
         </div>
       )}
       {showAnte && (
         <div>
-          <Label>Ante（アンティ）{mixed && " · POT / SIDE POT"}</Label>
+          <Label>
+            {t.anteLabel}
+            {mixed && " · POT / SIDE POT"}
+          </Label>
           <div className="mt-2 grid grid-cols-3 gap-1.5">
             {ANTE_OPTIONS.map((o) => (
-              <Chip key={o.value} active={s.ante === o.value} onClick={() => statsStore.setAnte(o.value)}>
-                {o.label}
+              <Chip key={o} active={s.ante === o} onClick={() => statsStore.setAnte(o)}>
+                {t.anteOptions[o]}
               </Chip>
             ))}
           </div>
-          <div className="mt-1 text-xs text-muted">BBアンティ = BBが1BB分を支払い / 全員アンティ = 各プレイヤーが1/8 BB。アンティはデッドマネーとしてメインポットに入ります。</div>
+          <div className="mt-1 text-xs text-muted">{t.anteNote}</div>
         </div>
       )}
       {showCards && (
         <div>
-          <Label>Board Cards（役に使うカード選択）{mixed && " · HAND / WINNER"}</Label>
+          <Label>
+            {t.boardCardsLabel}
+            {mixed && " · HAND / WINNER"}
+          </Label>
           <div className="mt-2 grid grid-cols-2 gap-1.5">
             <Chip active={s.selectBoardCards} onClick={() => statsStore.setSelectBoardCards(true)}>
-              あり
+              {t.on}
             </Chip>
             <Chip active={!s.selectBoardCards} onClick={() => statsStore.setSelectBoardCards(false)}>
-              なし
+              {t.off}
             </Chip>
           </div>
-          <div className="mt-1 text-xs text-muted">役（または勝者）を答えたあと、役に使われるコミュニティカードを上げるところまで回答します。</div>
+          <div className="mt-1 text-xs text-muted">{t.boardCardsNote}</div>
         </div>
       )}
     </Panel>

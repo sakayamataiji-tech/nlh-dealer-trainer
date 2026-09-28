@@ -6,6 +6,7 @@ import { CardRow, PlayingCard, type CardSize } from "@/components/PlayingCard";
 import { Button } from "@/components/ui/button";
 import { Kbd, Panel } from "@/components/ui/panel";
 import { cn } from "@/lib/utils";
+import { useI18n } from "@/i18n";
 
 /**
  * Shared "push up the board cards that play" step (HAND READING and WINNER).
@@ -88,6 +89,7 @@ export function BoardCards({
 
 /** Collapsed first answer ("HAND: Straight  [変更]") shown during the card step. */
 export function PickedSummary({ label, value, onBack }: { label: string; value: ReactNode; onBack: () => void }) {
+  const { t } = useI18n();
   return (
     <Panel className="flex items-center justify-between gap-2 px-3 py-2 sm:px-4">
       <div className="text-sm">
@@ -95,7 +97,7 @@ export function PickedSummary({ label, value, onBack }: { label: string; value: 
         <span className="font-bold text-brass">{value}</span>
       </div>
       <Button variant="ghost" size="sm" onClick={onBack}>
-        <Undo2 className="h-4 w-4" /> 変更 <Kbd>Esc</Kbd>
+        <Undo2 className="h-4 w-4" /> {t.change} <Kbd>Esc</Kbd>
       </Button>
     </Panel>
   );
@@ -103,6 +105,7 @@ export function PickedSummary({ label, value, onBack }: { label: string; value: 
 
 /** Instruction + confirm button; scrolls itself into view on phones. */
 export function CardStepPanel({ title, count, canSubmit, onSubmit }: { title: ReactNode; count: number; canSubmit: boolean; onSubmit: () => void }) {
+  const { t } = useI18n();
   const ref = useRef<HTMLDivElement>(null);
   useEffect(() => {
     const el = ref.current;
@@ -112,11 +115,11 @@ export function CardStepPanel({ title, count, canSubmit, onSubmit }: { title: Re
     <div ref={ref}>
       <Panel className="animate-rise border-brass/50 p-3 sm:p-4">
         <div className="text-lg font-bold tracking-wide sm:text-xl">{title}</div>
-        <div className="mt-0.5 text-xs text-muted">役に使われるコミュニティカードをタップして上げる（3〜5枚）</div>
+        <div className="mt-0.5 text-xs text-muted">{t.cardsInstruction}</div>
         <Button variant="primary" size="lg" className="mt-3 w-full" disabled={!canSubmit} onClick={onSubmit}>
-          決定（{count}枚） <Kbd className="border-ink/30 bg-transparent text-ink/70">Enter</Kbd>
+          {t.confirmCards(count)} <Kbd className="border-ink/30 bg-transparent text-ink/70">Enter</Kbd>
         </Button>
-        <div className="mt-1 hidden text-[11px] text-muted md:block">1〜5: ボードのカードを上げ下げ · Esc: 前の選択に戻る</div>
+        <div className="mt-1 hidden text-[11px] text-muted md:block">{t.cardsKeys}</div>
       </Panel>
     </div>
   );

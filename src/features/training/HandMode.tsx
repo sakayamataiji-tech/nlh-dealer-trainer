@@ -8,6 +8,7 @@ import { CardRow } from "@/components/PlayingCard";
 import { PokerTable } from "@/components/PokerTable";
 import { Panel, Label } from "@/components/ui/panel";
 import { cn } from "@/lib/utils";
+import { useI18n } from "@/i18n";
 import { ChoiceList } from "./ChoiceList";
 import { BoardCards, CardStepPanel, PartsResult, PickedSummary, useBoardCardStep } from "./BoardCardStep";
 import { ModeLayout, Question } from "./ModeLayout";
@@ -18,6 +19,7 @@ import type { ModeViewProps } from "./types";
  * Step 2 (optional): push up the board cards that play in it, like a dealer does at showdown.
  */
 export function HandMode({ scenario, answered, onAnswer, verdict }: ModeViewProps<HandScenario>) {
+  const { t } = useI18n();
   const [picked, setPicked] = useState<HandCategory | null>(null);
   const inCardStep = picked !== null && !answered;
   const choices = useMemo(() => scenario.choices.map((c) => ({ key: String(c), label: CATEGORY_LABEL[c] })), [scenario]);
@@ -64,13 +66,13 @@ export function HandMode({ scenario, answered, onAnswer, verdict }: ModeViewProp
         <PickedSummary label="HAND" value={CATEGORY_LABEL[picked!]} onBack={step.back} />
       ) : (
         <Panel className="p-3 sm:p-4">
-          <Question sub={`LEVEL ${scenario.level}`}>このプレイヤーのBEST HANDは？</Question>
+          <Question sub={`LEVEL ${scenario.level}`}>{t.handQ}</Question>
           <div className="mt-3">
             <ChoiceList choices={choices} onPick={pick} answeredKey={userCat === null ? null : String(userCat)} correctKey={answered ? String(scenario.hand.category) : null} />
           </div>
         </Panel>
       )}
-      {inCardStep && <CardStepPanel title="この役に使うボードのカードは？" count={step.raised.length} canSubmit={step.canSubmit} onSubmit={step.submit} />}
+      {inCardStep && <CardStepPanel title={t.cardsTitleHand} count={step.raised.length} canSubmit={step.canSubmit} onSubmit={step.submit} />}
       {answered && (
         <>
           {verdict}
@@ -81,7 +83,7 @@ export function HandMode({ scenario, answered, onAnswer, verdict }: ModeViewProp
                   { ok: answered.grade.parts.category, label: "HAND", value: CATEGORY_LABEL[userCat] },
                   ...(scenario.requireBoardCards ? [{ ok: !!answered.grade.parts.cards, label: "BOARD CARDS", value: <CardRow cards={userCards} size="xs" /> }] : []),
                 ]}
-                example={scenario.requireBoardCards && !answered.grade.parts.cards ? { label: "正解例", cards: trueBoardCards } : undefined}
+                example={scenario.requireBoardCards && !answered.grade.parts.cards ? { label: t.example, cards: trueBoardCards } : undefined}
               />
             )}
             <div className="text-2xl font-black tracking-[0.1em] text-brass">{handName(scenario.hand).toUpperCase()}</div>

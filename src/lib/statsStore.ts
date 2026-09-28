@@ -62,6 +62,9 @@ class StatsStore {
   setPlayers(mode: PlayerSettingMode, value: PlayerSetting) {
     this.update((d) => ({ ...d, settings: { ...d.settings, players: { ...d.settings.players, [mode]: value } } }));
   }
+  setLang(lang: "ja" | "en") {
+    this.update((d) => ({ ...d, settings: { ...d.settings, lang } }));
+  }
   setPlaybackSpeed(speed: 1 | 2 | 3) {
     this.update((d) => ({ ...d, settings: { ...d.settings, playbackSpeed: speed } }));
   }

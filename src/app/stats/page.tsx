@@ -4,22 +4,23 @@ import { ChevronLeft, Crosshair, Trash2 } from "lucide-react";
 import { useState } from "react";
 import { useStats, statsStore } from "@/lib/statsStore";
 import { byLevel, byMode, bySkill, dealerRating, summarize, weaknesses, type Grade, type RatingDetail } from "@/stats/aggregate";
-import { EXPERIENCE_OPTIONS } from "@/stats/types";
 import { TRAINING_MODES, LEVELS } from "@/engine/scenarioTypes";
 import { MODE_META } from "@/features/training/modeMeta";
 import { Button } from "@/components/ui/button";
 import { Label, Panel } from "@/components/ui/panel";
 import { cn, formatPercent, formatSeconds } from "@/lib/utils";
+import { LanguageToggle, useI18n } from "@/i18n";
 
 const GRADE_COLOR: Record<Grade, string> = { S: "text-brass", A: "text-good", B: "text-text", C: "text-warn", D: "text-bad" };
 
 function GradeCell({ label, r, big = false }: { label: string; r: RatingDetail; big?: boolean }) {
+  const { t } = useI18n();
   return (
     <div className={cn("flex items-center justify-between px-4", big ? "py-4" : "py-3")}>
       <div>
         <div className={cn("font-bold tracking-[0.15em]", big ? "text-base" : "text-sm")}>{label}</div>
         <div className="text-[11px] text-muted tabular">
-          {r.grade ? `Acc ${formatPercent(r.accuracy)} · Speed ${formatPercent(r.speed)} · Diff ${formatPercent(r.difficulty)}` : `あと${Math.max(0, 5 - r.answers)}問で判定`}
+          {r.grade ? `Acc ${formatPercent(r.accuracy)} · Speed ${formatPercent(r.speed)} · Diff ${formatPercent(r.difficulty)}` : t.gradePending(Math.max(0, 5 - r.answers))}
         </div>
       </div>
       <div className={cn("font-black", big ? "text-5xl" : "text-3xl", r.grade ? GRADE_COLOR[r.grade] : "text-line")}>{r.grade ?? "—"}</div>
@@ -29,6 +30,7 @@ function GradeCell({ label, r, big = false }: { label: string; r: RatingDetail; 
 
 export default function StatsPage() {
   const stats = useStats();
+  const { t } = useI18n();
   const [confirm, setConfirm] = useState(false);
   if (!stats) return null;
   const rs = stats.records;
@@ -46,6 +48,7 @@ export default function StatsPage() {
           <ChevronLeft className="h-5 w-5" />
         </Link>
         <div className="flex-1 text-sm font-black tracking-[0.18em]">STATS</div>
+        <LanguageToggle />
       </header>
 
       <div className="grid gap-5 lg:grid-cols-2">
@@ -59,7 +62,7 @@ export default function StatsPage() {
               <GradeCell label="OVERALL" r={rating.overall} big />
             </div>
           </Panel>
-          <p className="mt-1 text-[11px] text-muted">直近{200}問の Accuracy 60% · Speed 25% · Difficulty 15% から算出</p>
+          <p className="mt-1 text-[11px] text-muted">{t.ratingNote(200)}</p>
         </section>
 
         <section className="flex flex-col gap-5">
@@ -86,7 +89,7 @@ export default function StatsPage() {
             <Label className="mb-2">Recommended Training</Label>
             <Panel className="p-4">
               {weak.length === 0 ? (
-                <div className="text-sm text-muted">苦手カテゴリはまだありません（各スキル3問以上・正答率90%未満で表示）。</div>
+                <div className="text-sm text-muted">{t.noWeakness}</div>
               ) : (
                 <ul className="flex flex-col gap-1.5">
                   {weak.map((w) => (
@@ -121,7 +124,7 @@ export default function StatsPage() {
       <section>
         <Label className="mb-2">Skills</Label>
         <Panel className="divide-y divide-line">
-          {skills.length === 0 && <div className="p-4 text-sm text-muted">データなし</div>}
+          {skills.length === 0 && <div className="p-4 text-sm text-muted">{t.noData}</div>}
           {skills.map(({ skill, label, summary }) => (
             <div key={skill} className="grid grid-cols-[1fr_auto] items-center gap-x-3 px-4 py-2 sm:grid-cols-[14rem_1fr_auto]">
               <div className="text-sm font-semibold">{label}</div>
@@ -139,7 +142,7 @@ export default function StatsPage() {
       <section>
         <Label className="mb-2">Recent Sessions</Label>
         <Panel className="divide-y divide-line">
-          {stats.sessions.length === 0 && <div className="p-4 text-sm text-muted">データなし</div>}
+          {stats.sessions.length === 0 && <div className="p-4 text-sm text-muted">{t.noData}</div>}
           {[...stats.sessions]
             .reverse()
             .slice(0, 10)
@@ -158,7 +161,7 @@ export default function StatsPage() {
 
       <section className="flex flex-wrap items-center justify-between gap-3 border-t border-line pt-4">
         <div className="text-xs text-muted">
-          Experience: {EXPERIENCE_OPTIONS.find((o) => o.value === stats.profile.experience)?.label ?? "未設定"} · Data is stored in this browser (LocalStorage, schema v{stats.schemaVersion})
+          {t.experienceLabel}: {stats.profile.experience ? t.experience[stats.profile.experience] : t.notSet} · {t.storageNote(stats.schemaVersion)}
         </div>
         {confirm ? (
           <div className="flex gap-2">
@@ -173,7 +176,7 @@ export default function StatsPage() {
                 setConfirm(false);
               }}
             >
-              <Trash2 className="h-4 w-4" /> 本当にリセット
+              <Trash2 className="h-4 w-4" /> {t.reallyReset}
             </Button>
           </div>
         ) : (

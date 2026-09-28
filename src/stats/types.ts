@@ -6,11 +6,12 @@ export const SCHEMA_VERSION = 1;
 
 export type Experience = "none" | "under3m" | "3to12m" | "over1y";
 
-export const EXPERIENCE_OPTIONS: { value: Experience; label: string; level: Level }[] = [
-  { value: "none", label: "未経験", level: 1 },
-  { value: "under3m", label: "〜3ヶ月", level: 2 },
-  { value: "3to12m", label: "3〜12ヶ月", level: 3 },
-  { value: "over1y", label: "1年以上", level: 4 },
+/** Labels live in src/i18n (t.experience). */
+export const EXPERIENCE_OPTIONS: { value: Experience; level: Level }[] = [
+  { value: "none", level: 1 },
+  { value: "under3m", level: 2 },
+  { value: "3to12m", level: 3 },
+  { value: "over1y", level: 4 },
 ];
 
 export type SessionLength = 10 | 25 | 50 | "endless";
@@ -19,11 +20,8 @@ export type SessionLength = 10 | 25 | 50 | "endless";
 export type PlayerSetting = "auto" | number;
 export type PlayerSettingMode = "winner" | "pot" | "sidepot";
 
-export const ANTE_OPTIONS: { value: AnteType; label: string }[] = [
-  { value: "none", label: "なし" },
-  { value: "bb", label: "BBアンティ" },
-  { value: "all", label: "全員アンティ" },
-];
+/** Labels live in src/i18n (t.anteOptions). */
+export const ANTE_OPTIONS: AnteType[] = ["none", "bb", "all"];
 export const SESSION_LENGTHS: SessionLength[] = [10, 25, 50, "endless"];
 
 export interface AnswerRecord {
@@ -71,6 +69,8 @@ export interface StatsData {
     selectBoardCards: boolean;
     /** POT: action playback speed multiplier. */
     playbackSpeed: 1 | 2 | 3;
+    /** UI language; unset = follow the browser language. */
+    lang?: "ja" | "en";
   };
   records: AnswerRecord[];
   streak: { current: number; best: number };

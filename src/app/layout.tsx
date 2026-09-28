@@ -1,9 +1,10 @@
 import type { Metadata, Viewport } from "next";
 import "./globals.css";
+import { HtmlLang } from "@/i18n";
 
 export const metadata: Metadata = {
   title: "NLH Dealer Trainer",
-  description: "速く、正確に、判断する。NLHディーラーのための判断力トレーニング。",
+  description: "Fast. Accurate. Decisive. — 速く、正確に、判断する。NLH dealer judgment training.",
   appleWebApp: { capable: true, title: "Dealer Trainer", statusBarStyle: "black-translucent" },
   formatDetection: { telephone: false },
 };
@@ -18,7 +19,10 @@ export const viewport: Viewport = {
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="ja">
-      <body className="antialiased">{children}</body>
+      <body className="antialiased">
+        <HtmlLang />
+        {children}
+      </body>
     </html>
   );
 }

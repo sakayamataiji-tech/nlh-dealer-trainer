@@ -9,7 +9,7 @@ export default function manifest(): MetadataRoute.Manifest {
   return {
     name: "NLH Dealer Trainer",
     short_name: "Dealer Trainer",
-    description: "速く、正確に、判断する。",
+    description: "Fast. Accurate. Decisive. — 速く、正確に、判断する。",
     start_url: `${base}/`,
     scope: `${base}/`,
     display: "standalone",

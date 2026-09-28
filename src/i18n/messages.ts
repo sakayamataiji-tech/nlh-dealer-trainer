@@ -1,0 +1,176 @@
+/**
+ * UI strings (Japanese / English). Poker terms and English headings (HAND READING, CALL,
+ * Accuracy …) stay in English in both languages, as they are used at real tables.
+ */
+import type { AnteType } from "@/engine/actions";
+import type { Experience } from "@/stats/types";
+
+export type Lang = "ja" | "en";
+export const LANGS: { value: Lang; label: string }[] = [
+  { value: "ja", label: "日本語" },
+  { value: "en", label: "English" },
+];
+
+type ModeSubKey = "hand" | "winner" | "pot" | "sidepot" | "quick" | "weakness";
+
+const ja = {
+  tagline: "速く、正確に、判断する。",
+  weaknessSub: "苦手分析トレーニング",
+  language: "言語",
+  modeSub: {
+    hand: "役判定",
+    winner: "勝者判定",
+    pot: "ポット計算",
+    sidepot: "サイドポット計算",
+    quick: "4カテゴリからランダム出題",
+    weakness: "苦手を優先して出題",
+  } as Record<ModeSubKey, string>,
+
+  onbTitle: "あなたのディーラー経験",
+  onbBody: "経験に合わせて初期の難易度を設定します。あとから各トレーニングで変更できます。",
+  experience: { none: "未経験", under3m: "〜3ヶ月", "3to12m": "3〜12ヶ月", over1y: "1年以上" } as Record<Experience, string>,
+
+  gradePending: (n: number) => `あと${n}問で判定`,
+  ratingNote: (n: number) => `直近${n}問の Accuracy 60% · Speed 25% · Difficulty 15% から算出`,
+  noWeakness: "苦手カテゴリはまだありません（各スキル3問以上・正答率90%未満で表示）。",
+  noData: "データなし",
+  experienceLabel: "経験",
+  notSet: "未設定",
+  storageNote: (v: number) => `データはこのブラウザに保存されます（LocalStorage・schema v${v}）`,
+  reallyReset: "本当にリセット",
+
+  weaknessNoData: "まだ成績データがありません。データが貯まるまでは4カテゴリからランダムに出題します。",
+  weaknessInfo: "過去の成績から正答率の低いスキルを優先して出題します。",
+  quickInfo: "4カテゴリからランダムに出題します。",
+  levelsInfo: (s: string) => `難易度: 各カテゴリの設定 (${s})`,
+  sessionLen: (n: number) => `${n}問`,
+  keyHelp: "1〜9: 選択肢で回答 · Enter: 数字入力の決定 · Space: 次の問題",
+  people: (a: number, b: number) => (a === b ? `${a}人` : `${a}〜${b}人`),
+  handHints: ["明確な役 (Pair / Straight / Flush)", "Two Pair / Trips / Full House / Quads", "全カテゴリ + キッカー判断", "Board Play (ボードが役)", "紛らわしい状況 (Four Flush / Double Paired / Wheel 等)"],
+  winnerHint: (table: string, showdown: string) => `${table}卓 · ショーダウン${showdown}`,
+  winnerExtras: ["", "", " · キッカー勝負多め", " · Board Play 多め", " · Counterfeit / FH比較 等"],
+  potStreets: ["Preflopのみ", "Flopまで", "Turnまで", "Riverまで", "Riverまで"],
+  potAllIn: " · All-inあり",
+  sidepotExtras: [" · All-in", " · Foldあり", " · Side Pot 2つ以上", " · Postflopあり", " · Fold / 返却あり"],
+  playersLabel: "Players（人数）",
+  autoNote: "AUTO = 難易度に合わせた人数",
+  anteLabel: "Ante（アンティ）",
+  anteOptions: { none: "なし", bb: "BBアンティ", all: "全員アンティ" } as Record<AnteType, string>,
+  anteNote: "BBアンティ = BBが1BB分を支払い / 全員アンティ = 各プレイヤーが1/8 BB。アンティはデッドマネーとしてメインポットに入ります。",
+  boardCardsLabel: "Board Cards（役に使うカード選択）",
+  on: "あり",
+  off: "なし",
+  boardCardsNote: "役（または勝者）を答えたあと、役に使われるコミュニティカードを上げるところまで回答します。",
+
+  handQ: "このプレイヤーのBEST HANDは？",
+  cardsTitleHand: "この役に使うボードのカードは？",
+  cardsTitleWinner: (name: string | null) => `${name ?? "勝った役"} の役に使うボードのカードは？`,
+  cardsInstruction: "役に使われるコミュニティカードをタップして上げる（3〜5枚）",
+  confirmCards: (n: number) => `決定（${n}枚）`,
+  cardsKeys: "1〜5: ボードのカードを上げ下げ · Esc: 前の選択に戻る",
+  change: "変更",
+  example: "正解例",
+  exampleFor: (name: string) => `${name} の正解例`,
+
+  winnerQ: "WINNERは？",
+  winnerSubPlaying: (lvl: number, n: number) => `LEVEL ${lvl} · ${n}人卓`,
+  winnerSub: (lvl: number, n: number, k: number) => `LEVEL ${lvl} · ${n}人卓 · ショーダウン ${k}人`,
+  winnerPlayingNote: "ハンド進行中… ショーダウンで残ったプレイヤーの中から勝者を選びます（計測はショーダウンから）",
+
+  potQ: "POTはいくら？",
+  potSub: (lvl: number, street: string) => `LEVEL ${lvl} · ${street} 終了時点（集めたポット＋各自の前のベット）`,
+  potPlaying: "アクション再生中… 終わったら計測開始",
+  returned: (a: string, b: string) => `(${a} − ${b} 返却)`,
+  anteIncluded: (amt: string) => `うちアンティ ${amt}`,
+  anteBB: "BBアンティ",
+  anteAll: (amt: string, n: number) => `${amt} × ${n}人`,
+  logShow: "ACTION LOG（金額つき）を表示",
+  logHide: "ACTION LOG を隠す",
+
+  howMuch: (label: string) => `${label} はいくら？`,
+  sidepotSub: (lvl: number, ante: boolean) => `LEVEL ${lvl} · 各プレイヤーの前の金額 = そのハンドのベット総額${ante ? "（中央のアンティはメインポットへ）" : ""}`,
+  returnTo: (name: string) => `UNCALLED → ${name} に返却`,
+};
+
+export type Messages = typeof ja;
+
+const en: Messages = {
+  tagline: "Fast. Accurate. Decisive.",
+  weaknessSub: "Train your weak spots",
+  language: "Language",
+  modeSub: {
+    hand: "Hand ranking",
+    winner: "Winner judgment",
+    pot: "Pot calculation",
+    sidepot: "Side pot calculation",
+    quick: "Random questions from all 4 categories",
+    weakness: "Focus on your weak spots",
+  },
+
+  onbTitle: "Your dealing experience",
+  onbBody: "We set your starting difficulty from your experience. You can change it in each training later.",
+  experience: { none: "None", under3m: "Up to 3 months", "3to12m": "3–12 months", over1y: "Over 1 year" },
+
+  gradePending: (n) => `${n} more to rate`,
+  ratingNote: (n) => `Based on the last ${n} answers: Accuracy 60% · Speed 25% · Difficulty 15%`,
+  noWeakness: "No weak spots yet (shown when a skill has 3+ answers under 90% accuracy).",
+  noData: "No data",
+  experienceLabel: "Experience",
+  notSet: "Not set",
+  storageNote: (v) => `Data is stored in this browser (LocalStorage, schema v${v})`,
+  reallyReset: "Really reset",
+
+  weaknessNoData: "No results yet. Until there is enough data, questions come randomly from all 4 categories.",
+  weaknessInfo: "Skills with the lowest accuracy in your history are asked first.",
+  quickInfo: "Questions come randomly from all 4 categories.",
+  levelsInfo: (s) => `Difficulty: each category's setting (${s})`,
+  sessionLen: (n) => `${n} Qs`,
+  keyHelp: "1–9: answer · Enter: submit number · Space: next question",
+  people: (a, b) => (a === b ? `${a} players` : `${a}–${b} players`),
+  handHints: ["Clear hands (Pair / Straight / Flush)", "Two Pair / Trips / Full House / Quads", "All categories + kickers", "Board play", "Tricky spots (Four Flush / Double Paired / Wheel …)"],
+  winnerHint: (table, showdown) => `${table} table · ${showdown} at showdown`,
+  winnerExtras: ["", "", " · more kicker battles", " · more board play", " · counterfeits, full house comparisons …"],
+  potStreets: ["Preflop only", "To the flop", "To the turn", "To the river", "To the river"],
+  potAllIn: " · with all-ins",
+  sidepotExtras: [" · all-ins", " · with folds", " · 2+ side pots", " · with postflop", " · folds / returns"],
+  playersLabel: "Players",
+  autoNote: "AUTO = player count follows the level",
+  anteLabel: "Ante",
+  anteOptions: { none: "None", bb: "BB ante", all: "Everyone" },
+  anteNote: "BB ante = the big blind pays 1 BB / Everyone = each player pays 1/8 BB. Antes are dead money in the main pot.",
+  boardCardsLabel: "Board cards (pick the cards that play)",
+  on: "On",
+  off: "Off",
+  boardCardsNote: "After naming the hand (or the winner), also raise the community cards that play.",
+
+  handQ: "What is this player's BEST HAND?",
+  cardsTitleHand: "Which board cards play in this hand?",
+  cardsTitleWinner: (name) => (name ? `Which board cards play in ${name}'s hand?` : "Which board cards play in the winning hand?"),
+  cardsInstruction: "Tap the community cards that play to raise them (3–5)",
+  confirmCards: (n) => `Confirm (${n})`,
+  cardsKeys: "1–5: raise / lower board cards · Esc: back",
+  change: "Change",
+  example: "Correct example",
+  exampleFor: (name) => `Correct example (${name})`,
+
+  winnerQ: "Who wins?",
+  winnerSubPlaying: (lvl, n) => `LEVEL ${lvl} · ${n}-handed`,
+  winnerSub: (lvl, n, k) => `LEVEL ${lvl} · ${n}-handed · ${k} at showdown`,
+  winnerPlayingNote: "Hand in progress… choose the winner among the players left at showdown (timer starts at showdown)",
+
+  potQ: "How much is the POT?",
+  potSub: (lvl, street) => `LEVEL ${lvl} · end of ${street} (collected pot + bets in front)`,
+  potPlaying: "Replaying the action… the timer starts when it ends",
+  returned: (a, b) => `(${a} − ${b} returned)`,
+  anteIncluded: (amt) => `incl. ante ${amt}`,
+  anteBB: "BB ante",
+  anteAll: (amt, n) => `${amt} × ${n}`,
+  logShow: "Show action log (with amounts)",
+  logHide: "Hide action log",
+
+  howMuch: (label) => `How much is the ${label}?`,
+  sidepotSub: (lvl, ante) => `LEVEL ${lvl} · amount in front of each player = their total bet this hand${ante ? " (antes in the middle go to the main pot)" : ""}`,
+  returnTo: (name) => `UNCALLED → return to ${name}`,
+};
+
+export const MESSAGES: Record<Lang, Messages> = { ja, en };
