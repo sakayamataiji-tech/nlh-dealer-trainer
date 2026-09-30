@@ -7,6 +7,7 @@ import { Onboarding } from "@/components/home/Onboarding";
 import { Label } from "@/components/ui/panel";
 import { formatPercent, formatSeconds } from "@/lib/utils";
 import { LanguageToggle, useI18n } from "@/i18n";
+import { SiteFooter } from "@/components/SiteFooter";
 
 const MENU = [
   { href: "/train/hand/", title: "HAND READING", icon: Spade, mode: "hand" as const },
@@ -84,6 +85,7 @@ export default function Home() {
           <span className="max-w-full truncate px-2 text-[11px] text-muted">{weak.length ? `Recommended: ${weak.map((w) => w.label).join(" / ")}` : t.weaknessSub}</span>
         </Link>
       </section>
+      <SiteFooter />
     </main>
   );
 }

@@ -74,6 +74,12 @@ class StatsStore {
   setSessionLength(len: SessionLength) {
     this.update((d) => ({ ...d, settings: { ...d.settings, sessionLength: len } }));
   }
+  /** Replace everything (backup import). */
+  replaceAll(data: StatsData) {
+    this.data = data;
+    this.repo.save(data);
+    this.listeners.forEach((l) => l());
+  }
   reset() {
     this.repo.clear();
     this.data = emptyStats();

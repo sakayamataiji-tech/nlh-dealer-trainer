@@ -44,6 +44,11 @@ Settings (training setup screen): player count (AUTO by level, or fixed 2–9), 
 
 Storage: `StatsRepository` (LocalStorage implementation) holds a single versioned document (`schemaVersion: 1`); swapping in a Supabase repository only requires implementing `load/save/clear`.
 
+## Release
+
+Production release steps (custom domain, operator info, DNS, branch protection, checklist): see [docs/RELEASE.md](docs/RELEASE.md).
+Included: privacy policy & terms (ja/en), OGP/SEO (robots.txt, sitemap.xml), offline support (service worker), result backup export/import, 404/error screens, PR CI.
+
 ## Playing on a phone
 
 The app is deployed to GitHub Pages by `.github/workflows/deploy.yml` on every push:

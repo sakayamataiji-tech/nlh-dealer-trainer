@@ -10,6 +10,10 @@ import { Button } from "@/components/ui/button";
 import { Label, Panel } from "@/components/ui/panel";
 import { cn, formatPercent, formatSeconds } from "@/lib/utils";
 import { LanguageToggle, useI18n } from "@/i18n";
+import { Download, Upload } from "lucide-react";
+import { useRef } from "react";
+import { parseBackup, serializeBackup } from "@/stats/repository";
+import { SiteFooter } from "@/components/SiteFooter";
 
 const GRADE_COLOR: Record<Grade, string> = { S: "text-brass", A: "text-good", B: "text-text", C: "text-warn", D: "text-bad" };
 
@@ -159,6 +163,8 @@ export default function StatsPage() {
         </Panel>
       </section>
 
+      <BackupPanel />
+
       <section className="flex flex-wrap items-center justify-between gap-3 border-t border-line pt-4">
         <div className="text-xs text-muted">
           {t.experienceLabel}: {stats.profile.experience ? t.experience[stats.profile.experience] : t.notSet} · {t.storageNote(stats.schemaVersion)}
@@ -185,6 +191,7 @@ export default function StatsPage() {
           </Button>
         )}
       </section>
+      <SiteFooter />
     </main>
   );
 }
@@ -213,5 +220,57 @@ function StatTable({ rows }: { rows: readonly (readonly [string, ReturnType<type
         </tbody>
       </table>
     </Panel>
+  );
+}
+
+function BackupPanel() {
+  const { t } = useI18n();
+  const fileRef = useRef<HTMLInputElement>(null);
+  const [message, setMessage] = useState<string | null>(null);
+
+  const exportData = () => {
+    const blob = new Blob([serializeBackup(statsStore.current)], { type: "application/json" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `nlh-dealer-trainer-backup-${new Date().toISOString().slice(0, 10)}.json`;
+    a.click();
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+  };
+  const importFile = async (file: File) => {
+    const data = parseBackup(await file.text());
+    if (!data) return setMessage(t.importFailed);
+    if (!window.confirm(t.importConfirm)) return;
+    statsStore.replaceAll(data);
+    setMessage(t.importDone(data.records.length));
+  };
+
+  return (
+    <section>
+      <Label className="mb-2">{t.backupTitle}</Label>
+      <Panel className="flex flex-col gap-3 p-4">
+        <p className="text-sm text-muted">{t.backupNote}</p>
+        <div className="flex flex-wrap gap-2">
+          <Button variant="secondary" onClick={exportData}>
+            <Download className="h-4 w-4" /> {t.exportData}
+          </Button>
+          <Button variant="secondary" onClick={() => fileRef.current?.click()}>
+            <Upload className="h-4 w-4" /> {t.importData}
+          </Button>
+          <input
+            ref={fileRef}
+            type="file"
+            accept="application/json,.json"
+            className="hidden"
+            onChange={(e) => {
+              const f = e.target.files?.[0];
+              if (f) void importFile(f);
+              e.target.value = "";
+            }}
+          />
+        </div>
+        {message && <p className="text-sm text-brass">{message}</p>}
+      </Panel>
+    </section>
   );
 }

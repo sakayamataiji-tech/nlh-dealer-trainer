@@ -86,3 +86,33 @@ export function addSession(data: StatsData, session: SessionSummary): StatsData 
   const sessions = [...data.sessions, session];
   return { ...data, sessions: sessions.length > MAX_SESSIONS ? sessions.slice(-MAX_SESSIONS) : sessions };
 }
+
+/* ---------------- Backup (export / import) ---------------- */
+
+export const BACKUP_KIND = "nlh-dealer-trainer-backup";
+
+/** Serialize the stats document as a backup file. */
+export function serializeBackup(data: StatsData, exportedAt = new Date()): string {
+  return JSON.stringify({ kind: BACKUP_KIND, exportedAt: exportedAt.toISOString(), data }, null, 2);
+}
+
+/**
+ * Parse a backup file. Returns null if it is not a backup from this app.
+ * Older schema versions go through the normal migration.
+ */
+export function parseBackup(text: string): StatsData | null {
+  let raw: unknown;
+  try {
+    raw = JSON.parse(text);
+  } catch {
+    return null;
+  }
+  if (!raw || typeof raw !== "object" || (raw as { kind?: unknown }).kind !== BACKUP_KIND) return null;
+  const doc = (raw as { data?: unknown }).data;
+  if (!doc || typeof doc !== "object" || typeof (doc as { schemaVersion?: unknown }).schemaVersion !== "number") return null;
+  const migrated = migrate(doc);
+  // migrate() resets unknown versions to empty — treat that as a failed import.
+  if ((doc as { schemaVersion: number }).schemaVersion !== SCHEMA_VERSION) return null;
+  const valid = migrated.records.every((r) => r && typeof r.id === "string" && typeof r.correct === "boolean" && typeof r.timeMs === "number");
+  return valid ? migrated : null;
+}

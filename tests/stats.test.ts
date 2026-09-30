@@ -94,3 +94,21 @@ describe("board-card selection tracking", () => {
     expect(rows[0].summary.accuracy).toBe(0);
   });
 });
+
+describe("backup export / import", () => {
+  it("round-trips the full document", async () => {
+    const { serializeBackup, parseBackup } = await import("@/stats/repository");
+    let d = emptyStats();
+    d = addRecord(d, rec({ correct: true }));
+    d = addRecord(d, rec({ correct: false, parts: { category: true, cards: false } }));
+    const back = parseBackup(serializeBackup(d));
+    expect(back).toEqual(d);
+  });
+  it("rejects files that are not backups from this app", async () => {
+    const { parseBackup } = await import("@/stats/repository");
+    expect(parseBackup("not json")).toBeNull();
+    expect(parseBackup(JSON.stringify({ hello: 1 }))).toBeNull();
+    expect(parseBackup(JSON.stringify({ kind: "nlh-dealer-trainer-backup", data: { schemaVersion: 999 } }))).toBeNull();
+    expect(parseBackup(JSON.stringify({ kind: "nlh-dealer-trainer-backup", data: { schemaVersion: 1, records: [{ id: 1 }] } }))).toBeNull();
+  });
+});

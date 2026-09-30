@@ -90,6 +90,25 @@ const ja = {
   howMuch: (label: string) => `${label} はいくら？`,
   sidepotSub: (lvl: number, ante: boolean) => `LEVEL ${lvl} · 各プレイヤーの前の金額 = そのハンドのベット総額${ante ? "（中央のアンティはメインポットへ）" : ""}`,
   returnTo: (name: string) => `UNCALLED → ${name} に返却`,
+
+  privacy: "プライバシーポリシー",
+  terms: "利用規約",
+  backupLink: "成績のバックアップ",
+  effectiveDate: (d: string) => `制定日: ${d}`,
+  notFoundTitle: "ページが見つかりません",
+  notFoundBody: "URL が変わったか、ページが削除された可能性があります。",
+  backHome: "ホームへ戻る",
+  errorTitle: "問題が発生しました",
+  errorBody: "画面の表示中にエラーが起きました。再読み込みで直らない場合は、成績データをバックアップしてからリセットしてください。",
+  reload: "再読み込み",
+  backupTitle: "Backup",
+  backupNote: "成績はこの端末のブラウザにのみ保存されます。機種変更やブラウザの切り替えに備えて、ファイルに書き出しておけます。",
+  exportData: "書き出し",
+  importData: "読み込み",
+  importConfirm: "現在の成績を、選んだファイルの内容で置き換えます。よろしいですか？",
+  importDone: (n: number) => `${n}件の回答データを読み込みました。`,
+  importFailed: "読み込めませんでした。このアプリで書き出したバックアップファイルを選んでください。",
+  offlineReady: "オフラインでも使えます",
 };
 
 export type Messages = typeof ja;
@@ -171,6 +190,25 @@ const en: Messages = {
   howMuch: (label) => `How much is the ${label}?`,
   sidepotSub: (lvl, ante) => `LEVEL ${lvl} · amount in front of each player = their total bet this hand${ante ? " (antes in the middle go to the main pot)" : ""}`,
   returnTo: (name) => `UNCALLED → return to ${name}`,
+
+  privacy: "Privacy Policy",
+  terms: "Terms of Use",
+  backupLink: "Backup your results",
+  effectiveDate: (d) => `Effective: ${d}`,
+  notFoundTitle: "Page not found",
+  notFoundBody: "The URL may have changed or the page may have been removed.",
+  backHome: "Back to home",
+  errorTitle: "Something went wrong",
+  errorBody: "An error occurred while showing this screen. If reloading does not help, back up your results and then reset them.",
+  reload: "Reload",
+  backupTitle: "Backup",
+  backupNote: "Your results are stored only in this browser. Export them to a file before changing devices or browsers.",
+  exportData: "Export",
+  importData: "Import",
+  importConfirm: "Replace your current results with the contents of this file?",
+  importDone: (n) => `Imported ${n} answers.`,
+  importFailed: "Could not import. Please choose a backup file exported from this app.",
+  offlineReady: "Works offline",
 };
 
 export const MESSAGES: Record<Lang, Messages> = { ja, en };

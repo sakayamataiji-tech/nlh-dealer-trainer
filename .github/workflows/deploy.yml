@@ -1,5 +1,9 @@
 name: Deploy to GitHub Pages
 
+# Production URL:
+#   - Set the repository variable CUSTOM_DOMAIN (Settings → Secrets and variables → Actions → Variables),
+#     e.g. "dealertrainer.jp", to build for the custom domain (served at the domain root).
+#   - Without it, the site is built for https://<owner>.github.io/<repo>/.
 on:
   push:
     branches: [main, "claude/charming-archimedes-2ra0ey"]
@@ -25,9 +29,23 @@ jobs:
           cache: npm
       - run: npm ci
       - run: npm run test
-      - run: npm run build
+      - name: Resolve site URL
         env:
-          PAGES_BASE_PATH: /${{ github.event.repository.name }}
+          CUSTOM_DOMAIN: ${{ vars.CUSTOM_DOMAIN }}
+          REPO: ${{ github.event.repository.name }}
+          OWNER: ${{ github.repository_owner }}
+        run: |
+          if [ -n "$CUSTOM_DOMAIN" ]; then
+            echo "PAGES_BASE_PATH=" >> "$GITHUB_ENV"
+            echo "SITE_URL=https://$CUSTOM_DOMAIN" >> "$GITHUB_ENV"
+          else
+            echo "PAGES_BASE_PATH=/$REPO" >> "$GITHUB_ENV"
+            echo "SITE_URL=https://$OWNER.github.io/$REPO" >> "$GITHUB_ENV"
+          fi
+          if grep -q '【' src/config/site.ts; then
+            echo "::warning file=src/config/site.ts::Operator name / contact are still placeholders (see docs/RELEASE.md)."
+          fi
+      - run: npm run build
       - run: touch out/.nojekyll
       - uses: actions/upload-pages-artifact@v3
         with:
