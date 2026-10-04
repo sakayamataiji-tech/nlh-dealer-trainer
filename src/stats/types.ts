@@ -8,12 +8,16 @@ export interface CashSettings {
   bb: number;
   /** Smallest chip; the rake is rounded to it. */
   unit: number;
+  /** Revision of the rake defaults this was saved with (2 = rounding defaults to "up"). */
+  rev?: number;
   rake: RakeRule;
 }
 import type { SkillTag } from "@/engine/skills";
 import type { SpeedRating } from "@/engine/grading";
 
 export const SCHEMA_VERSION = 1;
+/** Bump when the rake defaults change in a way saved settings should pick up (see migrate). */
+export const CASH_REV = 2;
 
 export type Experience = "none" | "under3m" | "3to12m" | "over1y";
 
@@ -105,7 +109,7 @@ export function emptyStats(): StatsData {
       players: { winner: "auto", pot: "auto", sidepot: "auto" },
       selectBoardCards: true,
       playbackSpeed: 1,
-      cash: { enabled: false, sb: 1, bb: 3, unit: 1, rake: { ...SMALL_GAME_RAKE_RULE, jackpot: { ...SMALL_GAME_RAKE_RULE.jackpot } } },
+      cash: { enabled: false, sb: 1, bb: 3, unit: 1, rev: CASH_REV, rake: { ...SMALL_GAME_RAKE_RULE, jackpot: { ...SMALL_GAME_RAKE_RULE.jackpot } } },
     },
     records: [],
     streak: { current: 0, best: 0 },

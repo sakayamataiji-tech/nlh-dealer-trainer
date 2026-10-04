@@ -31,6 +31,10 @@ describe("stats repository", () => {
     expect(migrate({ schemaVersion: 999, records: [1] })).toEqual(emptyStats());
     // Cash settings saved before the chip unit existed get it from their blinds.
     expect(migrate({ schemaVersion: 1, settings: { cash: { sb: 1, bb: 3 } } }).settings.cash).toMatchObject({ sb: 1, bb: 3, unit: 1, rake: { rounding: "up" } });
+    // The old default rounding ("down") moves to the new default once; a later choice is kept.
+    expect(migrate({ schemaVersion: 1, settings: { cash: { sb: 1, bb: 3, rake: { rounding: "down" } } } }).settings.cash.rake.rounding).toBe("up");
+    expect(migrate({ schemaVersion: 1, settings: { cash: { sb: 1, bb: 3, rev: 2, rake: { rounding: "down" } } } }).settings.cash.rake.rounding).toBe("down");
+    expect(migrate({ schemaVersion: 1, settings: { cash: { sb: 1, bb: 3, rake: { rounding: "nearest" } } } }).settings.cash.rake.rounding).toBe("nearest");
     expect(migrate({ schemaVersion: 1, settings: {} }).settings.cash).toMatchObject({ sb: 1, bb: 3, unit: 1 });
     expect(migrate({ schemaVersion: 1, settings: { levels: { pot: 3 } } }).settings.levels).toEqual({ hand: 1, winner: 1, pot: 3, sidepot: 1, rake: 1 });
   });
