@@ -380,11 +380,7 @@ function SettingsPanel({ modeKey }: { modeKey: SessionModeKey }) {
           </Label>
           <div className="mt-1 text-xs text-muted">{t.cashNote}</div>
           <div className="mt-2 flex flex-col gap-3 rounded-lg border border-line p-3">
-            <div className="grid grid-cols-2 gap-2">
-              <NumberField label="SB" value={cash.sb} step={1} onCommit={(v) => statsStore.setCash({ sb: v })} />
-              <NumberField label="BB" value={cash.bb} step={1} onCommit={(v) => statsStore.setCash({ bb: v })} />
-            </div>
-            {cash.sb > cash.bb && <div className="-mt-2 text-xs text-warn">{t.sbOverBb}</div>}
+            <BlindsField sb={cash.sb} bb={cash.bb} />
             <div className="grid grid-cols-2 gap-2">
               <NumberField label={t.rakePercent} value={cash.rake.percent} step={0.5} onCommit={(v) => statsStore.setCash({ rake: { ...cash.rake, percent: v } })} />
               <NumberField label={t.rakeCap} value={cash.rake.cap} step={unit} onCommit={(v) => statsStore.setCash({ rake: { ...cash.rake, cap: v } })} />
@@ -441,6 +437,48 @@ function SettingsPanel({ modeKey }: { modeKey: SessionModeKey }) {
         </div>
       )}
     </Panel>
+  );
+}
+
+/** Small-game presets; anything bigger is typed in. */
+const BLIND_PRESETS = [
+  { sb: 1, bb: 3 },
+  { sb: 2, bb: 5 },
+  { sb: 5, bb: 10 },
+] as const;
+
+function BlindsField({ sb, bb }: { sb: number; bb: number }) {
+  const { t } = useI18n();
+  const isPreset = BLIND_PRESETS.some((p) => p.sb === sb && p.bb === bb);
+  const [custom, setCustom] = useState(!isPreset);
+  return (
+    <div>
+      <div className="mb-1 text-xs font-semibold text-muted">{t.blindsLabel}</div>
+      <div className="grid grid-cols-4 gap-1.5">
+        {BLIND_PRESETS.map((p) => (
+          <Chip
+            key={p.bb}
+            active={!custom && p.sb === sb && p.bb === bb}
+            onClick={() => {
+              setCustom(false);
+              statsStore.setCash({ sb: p.sb, bb: p.bb });
+            }}
+          >
+            {p.sb}-{p.bb}
+          </Chip>
+        ))}
+        <Chip active={custom} onClick={() => setCustom(true)}>
+          {t.blindsCustom}
+        </Chip>
+      </div>
+      {custom && (
+        <div className="mt-2 grid grid-cols-2 gap-2">
+          <NumberField label="SB" value={sb} step={1} onCommit={(v) => statsStore.setCash({ sb: v })} />
+          <NumberField label="BB" value={bb} step={1} onCommit={(v) => statsStore.setCash({ bb: v })} />
+        </div>
+      )}
+      {sb > bb && <div className="mt-1 text-xs text-warn">{t.sbOverBb}</div>}
+    </div>
   );
 }
 

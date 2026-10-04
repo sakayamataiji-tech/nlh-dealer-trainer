@@ -1,5 +1,5 @@
 import type { AnteType, Level, TrainingMode } from "@/engine/scenarioTypes";
-import { DEFAULT_RAKE_RULE, type RakeRule } from "@/engine/rake";
+import { SMALL_GAME_RAKE_RULE, type RakeRule } from "@/engine/rake";
 
 /** Cash-game house rules used by RAKE questions (`enabled` only applies to the legacy POT mode). */
 export interface CashSettings {
@@ -105,7 +105,7 @@ export function emptyStats(): StatsData {
       players: { winner: "auto", pot: "auto", sidepot: "auto" },
       selectBoardCards: true,
       playbackSpeed: 1,
-      cash: { enabled: false, sb: 100, bb: 200, unit: 25, rake: { ...DEFAULT_RAKE_RULE, jackpot: { ...DEFAULT_RAKE_RULE.jackpot } } },
+      cash: { enabled: false, sb: 1, bb: 3, unit: 1, rake: { ...SMALL_GAME_RAKE_RULE, jackpot: { ...SMALL_GAME_RAKE_RULE.jackpot } } },
     },
     records: [],
     streak: { current: 0, best: 0 },
