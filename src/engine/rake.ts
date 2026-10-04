@@ -32,10 +32,10 @@ export interface RakeRule {
   rounding: RakeRounding;
 }
 
-/** 5%, MAX 1,000, no flop no drop, no jackpot, rounded down. */
-export const DEFAULT_RAKE_RULE: RakeRule = { percent: 5, cap: 1000, noFlopNoDrop: true, jackpot: { enabled: false, amount: 200 }, rounding: "down" };
+/** 5%, MAX 1,000, no flop no drop, no jackpot, rounded up. */
+export const DEFAULT_RAKE_RULE: RakeRule = { percent: 5, cap: 1000, noFlopNoDrop: true, jackpot: { enabled: false, amount: 200 }, rounding: "up" };
 /** Typical small-game rule (1/3 …): 10%, MAX 5, jackpot 1. */
-export const SMALL_GAME_RAKE_RULE: RakeRule = { percent: 10, cap: 5, noFlopNoDrop: true, jackpot: { enabled: true, amount: 1 }, rounding: "down" };
+export const SMALL_GAME_RAKE_RULE: RakeRule = { percent: 10, cap: 5, noFlopNoDrop: true, jackpot: { enabled: true, amount: 1 }, rounding: "up" };
 
 export interface RakeResult {
   rake: number;
@@ -63,7 +63,7 @@ export function roundToStep(x: number, step: number, mode: RakeRounding): number
 export function computeRake(pot: number, sawFlop: boolean, rule: RakeRule, unit = RAKE_STEP): RakeResult {
   if (pot < 0) throw new Error("Negative pot");
   if (rule.noFlopNoDrop && !sawFlop) return { rake: 0, jackpot: 0, payout: pot, reason: "no-flop", uncapped: 0, unit };
-  const uncapped = Math.min(pot, roundToStep((pot * rule.percent) / 100, unit, rule.rounding ?? "down"));
+  const uncapped = Math.min(pot, roundToStep((pot * rule.percent) / 100, unit, rule.rounding ?? "up"));
   const rake = rule.cap > 0 ? Math.min(uncapped, rule.cap) : uncapped;
   const jackpot = rule.jackpot.enabled && rule.jackpot.amount > 0 && rake > 0 && pot - rake > rule.jackpot.amount ? rule.jackpot.amount : 0;
   return { rake, jackpot, payout: pot - rake - jackpot, reason: null, uncapped, unit };
@@ -77,7 +77,7 @@ export function normalizeRakeRule(r: RakeRule): RakeRule {
     cap: Math.floor(clamp(r.cap, 0, 10_000_000)),
     noFlopNoDrop: !!r.noFlopNoDrop,
     jackpot: { enabled: !!r.jackpot.enabled, amount: Math.floor(clamp(r.jackpot.amount, 0, 10_000_000)) },
-    rounding: RAKE_ROUNDINGS.includes(r.rounding) ? r.rounding : "down",
+    rounding: RAKE_ROUNDINGS.includes(r.rounding) ? r.rounding : "up",
   };
 }
 
