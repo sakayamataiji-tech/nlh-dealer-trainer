@@ -36,7 +36,10 @@ export const SKILLS = {
   "uncalled-bet": { label: "Uncalled Bet Return", modes: ["sidepot", "pot"] },
   ante: { label: "Ante", modes: ["pot", "sidepot"] },
   "board-card-selection": { label: "Board Card Selection", modes: ["hand", "winner"] },
-  rake: { label: "Rake / Jackpot", modes: ["pot"] },
+  rake: { label: "Rake / Jackpot", modes: ["rake"] },
+  "rake-cap": { label: "Rake MAX", modes: ["rake"] },
+  "no-flop-no-drop": { label: "No Flop No Drop", modes: ["rake"] },
+  jackpot: { label: "Jackpot Drop", modes: ["rake"] },
 } as const satisfies Record<string, { label: string; modes: readonly TrainingMode[] }>;
 
 export type SkillTag = keyof typeof SKILLS;

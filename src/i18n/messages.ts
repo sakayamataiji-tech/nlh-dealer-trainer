@@ -3,6 +3,7 @@
  * Accuracy …) stay in English in both languages, as they are used at real tables.
  */
 import type { AnteType } from "@/engine/actions";
+import type { HandEnding } from "@/engine/scenarioTypes";
 import type { Experience } from "@/stats/types";
 
 export type Lang = "ja" | "en";
@@ -11,7 +12,7 @@ export const LANGS: { value: Lang; label: string }[] = [
   { value: "en", label: "English" },
 ];
 
-type ModeSubKey = "hand" | "winner" | "pot" | "sidepot" | "quick" | "weakness";
+type ModeSubKey = "hand" | "winner" | "pot" | "sidepot" | "rake" | "quick" | "weakness";
 
 const ja = {
   tagline: "速く、正確に、判断する。",
@@ -22,6 +23,7 @@ const ja = {
     winner: "勝者判定",
     pot: "ポット計算",
     sidepot: "サイドポット計算",
+    rake: "レーキ計算",
     quick: "4カテゴリからランダム出題",
     weakness: "苦手を優先して出題",
   } as Record<ModeSubKey, string>,
@@ -111,7 +113,7 @@ const ja = {
   offlineReady: "オフラインでも使えます",
 
   cashLabel: "Cash Game / Rake（ハウスルール）",
-  cashNote: "POT の問題で、ポットの後にレーキ・ジャックポット・勝者への支払額（PAYOUT）も答えます。",
+  cashNote: "RAKE の問題で使うハウスルールです。お店のルールに合わせてください。",
   blindsLabel: "ブラインド",
   rakePercent: "レーキ %",
   rakeCap: "MAX（上限・0 = なし）",
@@ -124,6 +126,26 @@ const ja = {
   noFlopNoDropApplied: "フロップ前に終わったハンドなので、レーキ・ジャックポットは取りません（No Flop, No Drop）。",
   rakeExplain: (pot: string, pct: number, raw: string, cap: string | null) =>
     `${pot} × ${pct}% → ${raw}（25単位で切り捨て）${cap ? ` → MAX ${cap}` : ""}`,
+  rakeQ: "レーキを取って、勝者への支払額は？",
+  rakeSub: (lvl: number) => `LEVEL ${lvl} · ハンド終了時のポット（戻したベットは除く）`,
+  rakeHints: [
+    "きりのいいポット · ほぼフロップ以降で決着",
+    "プリフロップ決着・オールインあり · MAX付近のポットも",
+    "25単位の半端なポット · MAX / ジャックポットの境目",
+    "境目の問題が多め",
+    "境目・オールイン多め · 最難関",
+  ],
+  handEnding: {
+    "preflop-fold": "プリフロップで決着（フロップなし）",
+    flop: "フロップで決着",
+    turn: "ターンで決着",
+    river: "リバーでショーダウン",
+    "allin-runout": "プリフロップでオールイン → ボードを最後まで",
+  } as Record<HandEnding, string>,
+  runoutNote: "プリフロップのオールインでもフロップは開くので、レーキの対象です。",
+  jackpotSkipped: (why: "no-rake" | "too-small"): string =>
+    why === "no-rake" ? "レーキが発生しないので、ジャックポットも取りません。" : "レーキ後の残りがジャックポット額以下なので、ジャックポットは取りません。",
+  payoutExplain: (pot: string, rake: string, jp: string | null, payout: string) => `PAYOUT = ${pot} − ${rake}${jp ? ` − ${jp}` : ""} = ${payout}`,
 };
 
 export type Messages = typeof ja;
@@ -137,6 +159,7 @@ const en: Messages = {
     winner: "Winner judgment",
     pot: "Pot calculation",
     sidepot: "Side pot calculation",
+    rake: "Rake calculation",
     quick: "Random questions from all 4 categories",
     weakness: "Focus on your weak spots",
   },
@@ -226,7 +249,7 @@ const en: Messages = {
   offlineReady: "Works offline",
 
   cashLabel: "Cash game / Rake (house rules)",
-  cashNote: "POT questions also ask for the rake, the jackpot drop and the payout to the winner.",
+  cashNote: "House rules used by the RAKE questions. Set them to match your room.",
   blindsLabel: "Blinds",
   rakePercent: "Rake %",
   rakeCap: "MAX (cap, 0 = none)",
@@ -237,6 +260,26 @@ const en: Messages = {
   rakeTitle: "Rake / Jackpot",
   noFlopNoDropApplied: "The hand ended before the flop, so no rake or jackpot is taken (no flop, no drop).",
   rakeExplain: (pot, pct, raw, cap) => `${pot} × ${pct}% → ${raw} (rounded down to 25)${cap ? ` → MAX ${cap}` : ""}`,
+  rakeQ: "Take the rake — what is the payout?",
+  rakeSub: (lvl) => `LEVEL ${lvl} · final pot (uncalled bets already returned)`,
+  rakeHints: [
+    "Round pots · mostly hands that saw a flop",
+    "Preflop endings and all-ins · pots near the MAX",
+    "Odd pots in 25s · MAX and jackpot edges",
+    "More edge cases",
+    "Edges and all-ins · hardest",
+  ],
+  handEnding: {
+    "preflop-fold": "Ended preflop (no flop)",
+    flop: "Ended on the flop",
+    turn: "Ended on the turn",
+    river: "Showdown on the river",
+    "allin-runout": "All-in preflop → board run out",
+  },
+  runoutNote: "A preflop all-in still sees the flop, so the pot is raked.",
+  jackpotSkipped: (why) =>
+    why === "no-rake" ? "No rake is taken, so there is no jackpot drop either." : "What is left after the rake is not more than the jackpot amount, so no jackpot is taken.",
+  payoutExplain: (pot, rake, jp, payout) => `PAYOUT = ${pot} − ${rake}${jp ? ` − ${jp}` : ""} = ${payout}`,
 };
 
 export const MESSAGES: Record<Lang, Messages> = { ja, en };

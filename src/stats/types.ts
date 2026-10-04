@@ -1,7 +1,7 @@
 import type { AnteType, Level, TrainingMode } from "@/engine/scenarioTypes";
-import type { RakeRule } from "@/engine/rake";
+import { DEFAULT_RAKE_RULE, type RakeRule } from "@/engine/rake";
 
-/** Cash-game settings used by POT questions (house rules of the room). */
+/** Cash-game house rules used by RAKE questions (`enabled` only applies to the legacy POT mode). */
 export interface CashSettings {
   enabled: boolean;
   sb: number;
@@ -78,7 +78,7 @@ export interface StatsData {
     selectBoardCards: boolean;
     /** POT: action playback speed multiplier. */
     playbackSpeed: 1 | 2 | 3;
-    /** POT: cash game with rake / jackpot (house rules). */
+    /** RAKE: blinds and rake / jackpot (house rules). */
     cash: CashSettings;
     /** UI language; unset = follow the browser language. */
     lang?: "ja" | "en";
@@ -97,13 +97,13 @@ export function emptyStats(): StatsData {
     schemaVersion: SCHEMA_VERSION,
     profile: { experience: null, onboardedAt: null },
     settings: {
-      levels: { hand: 1, winner: 1, pot: 1, sidepot: 1 },
+      levels: { hand: 1, winner: 1, pot: 1, sidepot: 1, rake: 1 },
       sessionLength: 10,
       ante: "none",
       players: { winner: "auto", pot: "auto", sidepot: "auto" },
       selectBoardCards: true,
       playbackSpeed: 1,
-      cash: { enabled: false, sb: 100, bb: 200, rake: { percent: 5, cap: 1000, noFlopNoDrop: true, jackpot: { enabled: false, amount: 200 } } },
+      cash: { enabled: false, sb: 100, bb: 200, rake: { ...DEFAULT_RAKE_RULE, jackpot: { ...DEFAULT_RAKE_RULE.jackpot } } },
     },
     records: [],
     streak: { current: 0, best: 0 },

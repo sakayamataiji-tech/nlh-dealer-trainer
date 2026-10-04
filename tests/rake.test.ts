@@ -40,10 +40,10 @@ describe("rake", () => {
   });
 });
 
-import { generatePotScenario } from "@/engine/scenarioGenerator";
+import { generatePotScenario, generateRakeScenario } from "@/engine/scenarioGenerator";
 import { gradeAnswer } from "@/engine/grading";
 import { seededRng } from "@/engine/shuffle";
-import type { Level } from "@/engine/scenarioTypes";
+import { LEVELS, type Level } from "@/engine/scenarioTypes";
 
 describe("POT questions with a cash-game rake", () => {
   const cash = { sb: 500, bb: 1000, rake: rule({ percent: 5, cap: 3000, jackpot: { enabled: true, amount: 1000 } }) };
@@ -72,5 +72,59 @@ describe("POT questions with a cash-game rake", () => {
     expect(s.questions).toHaveLength(1);
     expect(s.rake).toBeNull();
     expect(gradeAnswer(s, { mode: "pot", amount: s.answer }).correct).toBe(true);
+  });
+});
+
+describe("RAKE mode", () => {
+  const cash = (r: Partial<RakeRule> = {}) => ({ sb: 100, bb: 200, rake: rule(r) });
+
+  it("answers always come from computeRake with the house rule", () => {
+    const rng = seededRng(31);
+    const jp = cash({ percent: 10, cap: 4000, jackpot: { enabled: true, amount: 1000 } });
+    for (const level of LEVELS)
+      for (let i = 0; i < 60; i++) {
+        const s = generateRakeScenario(level, { rng, cash: jp });
+        expect(s.pot % 25).toBe(0);
+        expect(s.pot).toBeGreaterThan(0);
+        const expected = computeRake(s.pot, s.ending !== "preflop-fold", jp.rake);
+        expect(s.result).toEqual(expected);
+        expect(s.questions.map((q) => q.key)).toEqual(["rake", "jackpot", "payout"]);
+        expect(s.questions.map((q) => q.answer)).toEqual([expected.rake, expected.jackpot, expected.payout]);
+        expect(s.result.rake + s.result.jackpot + s.result.payout).toBe(s.pot);
+      }
+  });
+
+  it("asks no jackpot when it is off, and LV1-2 pots are round (100s)", () => {
+    const rng = seededRng(32);
+    for (let i = 0; i < 50; i++) {
+      const s = generateRakeScenario(((i % 2) + 1) as Level, { rng, cash: cash() });
+      expect(s.questions.map((q) => q.key)).toEqual(["rake", "payout"]);
+      expect(s.pot % 100).toBe(0);
+    }
+  });
+
+  it("covers no flop no drop, all-in run-outs and the MAX edge", () => {
+    const rng = seededRng(33);
+    const seen = new Set<string>();
+    for (let i = 0; i < 300; i++) {
+      const s = generateRakeScenario(4, { rng, cash: cash() });
+      seen.add(s.ending);
+      s.skills.forEach((k) => seen.add(k));
+    }
+    for (const k of ["preflop-fold", "allin-runout", "no-flop-no-drop", "rake-cap"]) expect(seen).toContain(k);
+  });
+
+  it("weakness focus is honoured", () => {
+    const rng = seededRng(34);
+    for (let i = 0; i < 20; i++) expect(generateRakeScenario(3, { rng, cash: cash(), focus: "rake-cap" }).skills).toContain("rake-cap");
+  });
+
+  it("grades each number as a part", () => {
+    const s = generateRakeScenario(3, { rng: seededRng(35), cash: cash({ jackpot: { enabled: true, amount: 200 } }) });
+    const right = Object.fromEntries(s.questions.map((q) => [q.key, q.answer]));
+    expect(gradeAnswer(s, { mode: "rake", amounts: right })).toEqual({ correct: true, parts: { rake: true, jackpot: true, payout: true } });
+    const g = gradeAnswer(s, { mode: "rake", amounts: { ...right, payout: right.payout + 25 } });
+    expect(g.correct).toBe(false);
+    expect(g.parts).toEqual({ rake: true, jackpot: true, payout: false });
   });
 });

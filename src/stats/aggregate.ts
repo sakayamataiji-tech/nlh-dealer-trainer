@@ -1,6 +1,6 @@
-import type { Level, TrainingMode } from "@/engine/scenarioTypes";
+import type { ActiveMode, Level } from "@/engine/scenarioTypes";
 import { TRAINING_MODES, LEVELS } from "@/engine/scenarioTypes";
-import { SKILLS, type SkillTag } from "@/engine/skills";
+import { SKILLS, skillModes, type SkillTag } from "@/engine/skills";
 import type { AnswerRecord } from "./types";
 
 export interface Summary {
@@ -33,8 +33,8 @@ export function todayRecords(records: readonly AnswerRecord[], now = Date.now())
   return records.filter((r) => r.at >= start);
 }
 
-export function byMode(records: readonly AnswerRecord[]): Record<TrainingMode, Summary> {
-  return Object.fromEntries(TRAINING_MODES.map((m) => [m, summarize(records.filter((r) => r.mode === m))])) as Record<TrainingMode, Summary>;
+export function byMode(records: readonly AnswerRecord[]): Record<ActiveMode, Summary> {
+  return Object.fromEntries(TRAINING_MODES.map((m) => [m, summarize(records.filter((r) => r.mode === m))])) as Record<ActiveMode, Summary>;
 }
 
 export function byLevel(records: readonly AnswerRecord[]): Record<Level, Summary> {
@@ -61,7 +61,8 @@ export function bySkill(records: readonly AnswerRecord[]): { skill: SkillTag; la
     const main = mainPartCorrect(r);
     for (const s of r.skills) add(s, main === r.correct ? r : { ...r, correct: main });
     if (r.parts?.cards !== undefined) add("board-card-selection", { ...r, correct: r.parts.cards });
-    if (r.parts?.rake !== undefined) add("rake", { ...r, correct: r.parts.rake && (r.parts.jackpot ?? true) && (r.parts.payout ?? true) });
+    // Older POT records carried the rake as extra parts; RAKE records have the "rake" skill already.
+    if (r.parts?.rake !== undefined && !r.skills.includes("rake")) add("rake", { ...r, correct: r.parts.rake && (r.parts.jackpot ?? true) && (r.parts.payout ?? true) });
   }
   return [...map.entries()].map(([skill, rs]) => ({ skill, label: SKILLS[skill].label, summary: summarize(rs) }));
 }
@@ -117,8 +118,8 @@ export function gradeOf(composite: number): Grade {
   return "D";
 }
 
-export function dealerRating(records: readonly AnswerRecord[]): { modes: Record<TrainingMode, RatingDetail>; overall: RatingDetail } {
-  const modes = Object.fromEntries(TRAINING_MODES.map((m) => [m, rate(records.filter((r) => r.mode === m))])) as Record<TrainingMode, RatingDetail>;
+export function dealerRating(records: readonly AnswerRecord[]): { modes: Record<ActiveMode, RatingDetail>; overall: RatingDetail } {
+  const modes = Object.fromEntries(TRAINING_MODES.map((m) => [m, rate(records.filter((r) => r.mode === m))])) as Record<ActiveMode, RatingDetail>;
   // Overall is computed from the underlying accuracy/speed/difficulty of every recent answer, not by averaging grades.
   return { modes, overall: rate(records) };
 }
@@ -137,17 +138,22 @@ export const WEAKNESS_MIN_ATTEMPTS = 3;
 export const WEAKNESS_THRESHOLD = 0.9;
 export const WEAKNESS_WINDOW = 300;
 
-const MODE_LABEL: Record<TrainingMode, string> = { hand: "HAND READING", winner: "WINNER", pot: "POT", sidepot: "SIDE POT" };
+const MODE_LABEL: Record<ActiveMode, string> = { hand: "HAND READING", winner: "WINNER", sidepot: "SIDE POT", rake: "RAKE" };
+
+/** Skills that can still be trained (not only in the retired POT mode). */
+function trainable(skill: SkillTag): boolean {
+  return skillModes(skill).some((m) => (TRAINING_MODES as readonly string[]).includes(m));
+}
 
 /** Weak modes/skills (accuracy below threshold with enough attempts), weakest first. */
 export function weaknesses(records: readonly AnswerRecord[]): WeaknessItem[] {
   const recent = records.slice(-WEAKNESS_WINDOW);
   const items: WeaknessItem[] = [];
-  for (const [mode, s] of Object.entries(byMode(recent)) as [TrainingMode, Summary][]) {
+  for (const [mode, s] of Object.entries(byMode(recent)) as [ActiveMode, Summary][]) {
     if (s.total >= WEAKNESS_MIN_ATTEMPTS && s.accuracy! < WEAKNESS_THRESHOLD) items.push({ kind: "mode", key: mode, label: MODE_LABEL[mode], accuracy: s.accuracy!, attempts: s.total });
   }
   for (const { skill, label, summary } of bySkill(recent)) {
-    if (summary.total >= WEAKNESS_MIN_ATTEMPTS && summary.accuracy! < WEAKNESS_THRESHOLD) items.push({ kind: "skill", key: skill, label, accuracy: summary.accuracy!, attempts: summary.total });
+    if (trainable(skill) && summary.total >= WEAKNESS_MIN_ATTEMPTS && summary.accuracy! < WEAKNESS_THRESHOLD) items.push({ kind: "skill", key: skill, label, accuracy: summary.accuracy!, attempts: summary.total });
   }
   return items.sort((a, b) => a.accuracy - b.accuracy || b.attempts - a.attempts);
 }

@@ -7,8 +7,14 @@ import type { SidePotResult } from "./sidePotCalculator";
 import type { SkillTag } from "./skills";
 import type { RakeResult, RakeRule } from "./rake";
 
-export type TrainingMode = "hand" | "winner" | "pot" | "sidepot";
-export const TRAINING_MODES: readonly TrainingMode[] = ["hand", "winner", "pot", "sidepot"];
+/**
+ * "pot" (count the pot through a replayed hand) is kept in the engine for older records and
+ * pot-limit games later, but is not offered as a training mode: NLH dealers rarely announce
+ * the pot, and pot counting is already part of SIDE POT. RAKE drills the end-of-hand take.
+ */
+export type TrainingMode = "hand" | "winner" | "pot" | "sidepot" | "rake";
+export type ActiveMode = Exclude<TrainingMode, "pot">;
+export const TRAINING_MODES: readonly ActiveMode[] = ["hand", "winner", "sidepot", "rake"];
 export type Level = 1 | 2 | 3 | 4 | 5;
 export const LEVELS: readonly Level[] = [1, 2, 3, 4, 5];
 
@@ -101,6 +107,22 @@ export interface SidePotScenario extends BaseScenario {
   questions: NumericQuestion[];
 }
 
+/** How the hand ended — decides whether the flop was seen (no flop, no drop). */
+export type HandEnding = "preflop-fold" | "flop" | "turn" | "river" | "allin-runout";
+
+export interface RakeScenario extends BaseScenario {
+  mode: "rake";
+  blinds: { sb: number; bb: number };
+  /** Final pot, after uncalled bets were returned. */
+  pot: number;
+  ending: HandEnding;
+  rule: RakeRule;
+  /** Derived from computeRake. */
+  result: RakeResult;
+  /** RAKE, (JACKPOT), PAYOUT. */
+  questions: NumericQuestion[];
+}
+
 export type { AnteType };
 
-export type Scenario = HandScenario | WinnerScenario | PotScenario | SidePotScenario;
+export type Scenario = HandScenario | WinnerScenario | PotScenario | SidePotScenario | RakeScenario;

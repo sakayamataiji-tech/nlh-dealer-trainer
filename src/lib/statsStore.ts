@@ -49,14 +49,14 @@ class StatsStore {
     this.update((d) => ({
       ...d,
       profile: { experience: exp, onboardedAt: d.profile.onboardedAt ?? Date.now() },
-      settings: { ...d.settings, levels: { hand: level, winner: level, pot: level, sidepot: level } },
+      settings: { ...d.settings, levels: { hand: level, winner: level, pot: level, sidepot: level, rake: level } },
     }));
   }
   setLevel(mode: TrainingMode, level: Level) {
     this.update((d) => ({ ...d, settings: { ...d.settings, levels: { ...d.settings.levels, [mode]: level } } }));
   }
   setAllLevels(level: Level) {
-    this.update((d) => ({ ...d, settings: { ...d.settings, levels: { hand: level, winner: level, pot: level, sidepot: level } } }));
+    this.update((d) => ({ ...d, settings: { ...d.settings, levels: { hand: level, winner: level, pot: level, sidepot: level, rake: level } } }));
   }
   setAnte(ante: AnteType) {
     this.update((d) => ({ ...d, settings: { ...d.settings, ante } }));

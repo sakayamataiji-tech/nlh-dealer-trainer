@@ -22,4 +22,4 @@ export const SITE = {
 export const SITE_NEEDS_OPERATOR_INFO = SITE.operator.ja.startsWith("【") || SITE.contact.startsWith("【");
 
 /** Public routes (used for the sitemap and offline precache). */
-export const ROUTES = ["/", "/train/hand/", "/train/winner/", "/train/pot/", "/train/side-pot/", "/train/quick/", "/train/weakness/", "/stats/", "/privacy/", "/terms/"] as const;
+export const ROUTES = ["/", "/train/hand/", "/train/winner/", "/train/side-pot/", "/train/rake/", "/train/quick/", "/train/weakness/", "/stats/", "/privacy/", "/terms/"] as const;

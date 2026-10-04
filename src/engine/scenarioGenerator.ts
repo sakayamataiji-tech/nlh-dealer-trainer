@@ -10,7 +10,7 @@ import type { AnteType, BlindStructure, Street, TableAction } from "./actions";
 import { STREETS } from "./actions";
 import { HandState } from "./bettingEngine";
 import { type BotContext, decide } from "./strategy";
-import { computeRake, type RakeRule } from "./rake";
+import { computeRake, DEFAULT_RAKE_RULE, roundDownToStep, type RakeRule } from "./rake";
 import { type Card, makeCard, rankValue, SUITS, suitOf, type Suit } from "./cards";
 import { createDeck, Dealer } from "./deck";
 import { resolveShowdown, type ShowdownResult } from "./handComparator";
@@ -21,7 +21,9 @@ import { buildPots, potName } from "./sidePotCalculator";
 import { type Rng, defaultRng, pick, randInt, shuffle, weightedPick } from "./shuffle";
 import type { SkillTag } from "./skills";
 import type {
+  HandEnding,
   HandScenario,
+  RakeScenario,
   Level,
   PotScenario,
   Scenario,
@@ -41,7 +43,7 @@ export interface GenerateOptions {
   players?: number;
   /** Ante format for POT / SIDE POT. Default "none". */
   ante?: AnteType;
-  /** POT: cash game with fixed blinds and a rake (null/undefined = off). */
+  /** RAKE (and POT): cash game with fixed blinds and a rake rule (null/undefined = off; RAKE then uses the default rule). */
   cash?: { sb: number; bb: number; rake: RakeRule } | null;
   /** HAND / WINNER: also ask which board cards play in the hand. Default true. */
   selectBoardCards?: boolean;
@@ -794,6 +796,99 @@ export function generateSidePotScenario(level: Level, opts: GenerateOptions = {}
 }
 
 /* ------------------------------------------------------------------ */
+/* RAKE                                                               */
+/* ------------------------------------------------------------------ */
+
+/** Final-pot size by how the hand ended, in big blinds. */
+const RAKE_POT_BB: Record<HandEnding, [number, number]> = {
+  "preflop-fold": [1.5, 12],
+  flop: [4, 30],
+  turn: [8, 60],
+  river: [12, 120],
+  "allin-runout": [30, 250],
+};
+
+export const RAKE_LEVELS: Record<Level, { step: number; endings: Partial<Record<HandEnding, number>>; edge: number }> = {
+  1: { step: 100, endings: { flop: 4, turn: 3, river: 3, "preflop-fold": 1 }, edge: 0 },
+  2: { step: 100, endings: { flop: 3, turn: 3, river: 3, "preflop-fold": 2, "allin-runout": 1 }, edge: 0.2 },
+  3: { step: 25, endings: { flop: 3, turn: 3, river: 3, "preflop-fold": 2, "allin-runout": 1 }, edge: 0.35 },
+  4: { step: 25, endings: { flop: 2, turn: 3, river: 3, "preflop-fold": 2, "allin-runout": 2 }, edge: 0.5 },
+  5: { step: 25, endings: { flop: 2, turn: 2, river: 3, "preflop-fold": 2, "allin-runout": 3 }, edge: 0.6 },
+};
+
+/**
+ * RAKE: the hand is over and the final pot is shown; the dealer takes the rake and the
+ * jackpot drop and states the payout. Answers come from computeRake with the house rule.
+ * Higher levels add odd amounts and pots near the rule's edges (MAX threshold, jackpot).
+ */
+export function generateRakeScenario(level: Level, opts: GenerateOptions = {}): RakeScenario {
+  const rng = opts.rng ?? defaultRng;
+  const cfg = RAKE_LEVELS[level];
+  const blinds = opts.cash ? { sb: opts.cash.sb, bb: opts.cash.bb } : pick(rng, CASH_BLINDS);
+  const rule = opts.cash?.rake ?? DEFAULT_RAKE_RULE;
+  const step = Math.max(cfg.step, RAKE_STEP_MIN);
+  const potIn = ([a, b]: [number, number]) => randInt(rng, Math.ceil((blinds.bb * a) / step), Math.max(Math.ceil((blinds.bb * a) / step), Math.floor((blinds.bb * b) / step))) * step;
+  const endingFor = (pot: number): HandEnding => {
+    const bb = pot / blinds.bb;
+    if (bb < 30) return pick(rng, ["flop", "turn"] as HandEnding[]);
+    if (bb < 120) return pick(rng, ["turn", "river"] as HandEnding[]);
+    return pick(rng, ["river", "allin-runout"] as HandEnding[]);
+  };
+  let fallback: RakeScenario | null = null;
+  for (let attempt = 0; attempt < 400; attempt++) {
+    let ending = weightedPick(rng, Object.entries(cfg.endings).map(([value, weight]) => ({ value: value as HandEnding, weight: weight! })));
+    let pot = potIn(RAKE_POT_BB[ending]);
+    if (rng() < cfg.edge) {
+      const edges: (() => number | null)[] = [];
+      // Around the pot where the rake reaches MAX.
+      if (rule.cap > 0 && rule.percent > 0) edges.push(() => roundDownToStep((rule.cap * 100) / rule.percent, step) + randInt(rng, -6, 6) * step);
+      // Small pots where the jackpot is (or is no longer) left over after the rake.
+      if (rule.jackpot.enabled && rule.jackpot.amount > 0)
+        edges.push(() => roundDownToStep(rule.jackpot.amount / (1 - rule.percent / 100), step) + randInt(rng, -4, 4) * step);
+      if (edges.length) {
+        const p = pick(rng, edges)();
+        if (p !== null && p >= blinds.bb * 2 && p <= blinds.bb * 400) {
+          pot = p;
+          ending = endingFor(pot);
+        }
+      }
+    }
+    const result = computeRake(pot, ending !== "preflop-fold", rule);
+    const skills: SkillTag[] = ["rake"];
+    if (result.reason === "no-flop" || (ending === "allin-runout" && rule.noFlopNoDrop)) skills.push("no-flop-no-drop");
+    if (rule.cap > 0 && result.uncapped > rule.cap) skills.push("rake-cap");
+    if (rule.jackpot.enabled) skills.push("jackpot");
+    const questions = [
+      { key: "rake", label: "RAKE", answer: result.rake },
+      ...(rule.jackpot.enabled ? [{ key: "jackpot", label: "JACKPOT", answer: result.jackpot }] : []),
+      { key: "payout", label: "PAYOUT", answer: result.payout },
+    ];
+    const scenario: RakeScenario = {
+      id: newId(rng),
+      mode: "rake",
+      level,
+      blinds,
+      pot,
+      ending,
+      rule,
+      result,
+      questions,
+      skills,
+      targetSeconds: 3 + questions.length * 4,
+    };
+    if (opts.focus && !skills.includes(opts.focus)) {
+      fallback ??= scenario;
+      continue;
+    }
+    return scenario;
+  }
+  return fallback!;
+}
+
+/** Smallest chip in play (rake is rounded down to it as well). */
+const RAKE_STEP_MIN = 25;
+
+/* ------------------------------------------------------------------ */
 /* Entry point                                                        */
 /* ------------------------------------------------------------------ */
 
@@ -807,6 +902,8 @@ export function generateScenario(mode: TrainingMode, level: Level, opts: Generat
       return generatePotScenario(level, opts);
     case "sidepot":
       return generateSidePotScenario(level, opts);
+    case "rake":
+      return generateRakeScenario(level, opts);
   }
 }
 

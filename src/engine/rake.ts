@@ -18,6 +18,9 @@ export interface RakeRule {
   jackpot: { enabled: boolean; amount: number };
 }
 
+/** 5%, MAX 1,000, no flop no drop, no jackpot. */
+export const DEFAULT_RAKE_RULE: RakeRule = { percent: 5, cap: 1000, noFlopNoDrop: true, jackpot: { enabled: false, amount: 200 } };
+
 export interface RakeResult {
   rake: number;
   jackpot: number;

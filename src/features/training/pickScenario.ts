@@ -11,7 +11,7 @@ export function pickScenario(modeKey: SessionModeKey, stats: StatsData, rng: Rng
   const levelOf = (m: TrainingMode): Level => stats.settings.levels[m];
   // Apply the user's settings (player count, ante, board-card step) to every generated scenario.
   const playersOf = (m: TrainingMode): number | undefined => {
-    const p = m === "hand" ? "auto" : stats.settings.players[m];
+    const p = m === "hand" || m === "rake" ? "auto" : stats.settings.players[m];
     return p === "auto" ? undefined : p;
   };
   const generateScenario = (m: TrainingMode, level: Level, opts: GenerateOptions): Scenario => {
@@ -19,7 +19,7 @@ export function pickScenario(modeKey: SessionModeKey, stats: StatsData, rng: Rng
       ...opts,
       players: playersOf(m),
       ante: stats.settings.ante,
-      cash: stats.settings.cash.enabled ? stats.settings.cash : null,
+      cash: m === "rake" || stats.settings.cash.enabled ? stats.settings.cash : null,
       selectBoardCards: stats.settings.selectBoardCards,
     });
   };
@@ -39,7 +39,7 @@ export function pickScenario(modeKey: SessionModeKey, stats: StatsData, rng: Rng
       return generateScenario(m, levelOf(m), { rng });
     }
     const skill = item.key as SkillTag;
-    const m = pick(rng, skillModes(skill));
+    const m = pick(rng, skillModes(skill).filter((x) => (TRAINING_MODES as readonly TrainingMode[]).includes(x)));
     // The board-card step is a question part, not a scenario property: just make sure it is asked.
     if (skill === "board-card-selection") return generate(m, levelOf(m), { rng, selectBoardCards: true, players: m === "hand" ? undefined : playersOf(m) });
     return generateScenario(m, levelOf(m), { rng, focus: skill });

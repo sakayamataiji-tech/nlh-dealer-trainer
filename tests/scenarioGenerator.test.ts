@@ -161,7 +161,7 @@ describe("scenarioGenerator: performance", () => {
   it("generates 50 scenarios per mode quickly", () => {
     const rng = seededRng(1);
     const start = Date.now();
-    for (const mode of ["hand", "winner", "pot", "sidepot"] as const) for (let i = 0; i < 50; i++) generateScenario(mode, (((i % 5) + 1) as Level), { rng });
+    for (const mode of ["hand", "winner", "pot", "sidepot", "rake"] as const) for (let i = 0; i < 50; i++) generateScenario(mode, (((i % 5) + 1) as Level), { rng });
     expect(Date.now() - start).toBeLessThan(10000);
   });
 });

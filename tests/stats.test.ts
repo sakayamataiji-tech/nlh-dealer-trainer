@@ -29,7 +29,7 @@ describe("stats repository", () => {
     storage.setItem(STORAGE_KEY, "{not json");
     expect(new LocalStorageStatsRepository(storage).load()).toEqual(emptyStats());
     expect(migrate({ schemaVersion: 999, records: [1] })).toEqual(emptyStats());
-    expect(migrate({ schemaVersion: 1, settings: { levels: { pot: 3 } } }).settings.levels).toEqual({ hand: 1, winner: 1, pot: 3, sidepot: 1 });
+    expect(migrate({ schemaVersion: 1, settings: { levels: { pot: 3 } } }).settings.levels).toEqual({ hand: 1, winner: 1, pot: 3, sidepot: 1, rake: 1 });
   });
   it("tracks streak and best streak", () => {
     let d = emptyStats();
@@ -50,11 +50,11 @@ describe("stats aggregate", () => {
     expect(dealerRating([rec({})]).overall.grade).toBeNull();
     const rs = [
       ...Array.from({ length: 10 }, () => rec({ mode: "hand", correct: true, speed: "fast", level: 5 })),
-      ...Array.from({ length: 30 }, () => rec({ mode: "pot", correct: false, speed: "slow", level: 1 })),
+      ...Array.from({ length: 30 }, () => rec({ mode: "rake", correct: false, speed: "slow", level: 1 })),
     ];
     const r = dealerRating(rs);
     expect(r.modes.hand.grade).toBe("S");
-    expect(r.modes.pot.grade).toBe("D");
+    expect(r.modes.rake.grade).toBe("D");
     // weighted by answers: many poor pot answers pull overall down to D
     expect(r.overall.grade).toBe("D");
     expect(gradeOf(0.85)).toBe("A");

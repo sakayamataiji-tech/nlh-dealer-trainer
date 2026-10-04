@@ -12,8 +12,8 @@ import { SiteFooter } from "@/components/SiteFooter";
 const MENU = [
   { href: "/train/hand/", title: "HAND READING", icon: Spade, mode: "hand" as const },
   { href: "/train/winner/", title: "WINNER", icon: Trophy, mode: "winner" as const },
-  { href: "/train/pot/", title: "POT", icon: Coins, mode: "pot" as const },
   { href: "/train/side-pot/", title: "SIDE POT", icon: Layers, mode: "sidepot" as const },
+  { href: "/train/rake/", title: "RAKE", icon: Coins, mode: "rake" as const },
 ];
 
 export default function Home() {

@@ -3,10 +3,10 @@ import Link from "next/link";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { ChevronLeft, Flame, Play, Square } from "lucide-react";
 import { gradeAnswer, rateSpeed, scoreAnswer, type UserAnswer } from "@/engine/grading";
-import { LEVELS, type Level, type Scenario } from "@/engine/scenarioTypes";
+import { LEVELS, type ActiveMode, type Level, type Scenario } from "@/engine/scenarioTypes";
 import { longestStreak, weakestSkill } from "@/stats/aggregate";
 import { ANTE_OPTIONS, SESSION_LENGTHS, type AnswerRecord, type PlayerSettingMode, type SessionLength, type SessionSummary } from "@/stats/types";
-import { CASH_BLINDS, POT_LEVELS, SIDEPOT_LEVELS, WINNER_PLAYERS, WINNER_SHOWDOWN } from "@/engine/scenarioGenerator";
+import { CASH_BLINDS, SIDEPOT_LEVELS, WINNER_PLAYERS, WINNER_SHOWDOWN } from "@/engine/scenarioGenerator";
 import { statsStore, useStats } from "@/lib/statsStore";
 import { Button } from "@/components/ui/button";
 import { Kbd, Label, Panel } from "@/components/ui/panel";
@@ -15,6 +15,7 @@ import { HandMode } from "./HandMode";
 import { WinnerMode } from "./WinnerMode";
 import { PotMode } from "./PotMode";
 import { SidePotMode } from "./SidePotMode";
+import { RakeMode } from "./RakeMode";
 import { LiveTimer } from "./LiveTimer";
 import { Verdict } from "./Verdict";
 import { SessionResult } from "./SessionResult";
@@ -230,7 +231,7 @@ export function TrainingSession({ modeKey }: { modeKey: SessionModeKey }) {
                 : t.quickInfo}
               <div className="mt-1 text-xs">
                 {t.levelsInfo(
-                  `HAND LV${stats.settings.levels.hand} / WINNER LV${stats.settings.levels.winner} / POT LV${stats.settings.levels.pot} / SIDE POT LV${stats.settings.levels.sidepot}`,
+                  `HAND LV${stats.settings.levels.hand} / WINNER LV${stats.settings.levels.winner} / SIDE POT LV${stats.settings.levels.sidepot} / RAKE LV${stats.settings.levels.rake}`,
                 )}
               </div>
             </Panel>
@@ -291,18 +292,20 @@ function renderMode(s: Scenario, answered: AnsweredState | null, onAnswer: (a: U
       return <PotMode key={s.id} scenario={s} {...common} />;
     case "sidepot":
       return <SidePotMode key={s.id} scenario={s} {...common} />;
+    case "rake":
+      return <RakeMode key={s.id} scenario={s} {...common} />;
   }
 }
 
 /** Per-level description shown under the difficulty picker (derived from the generator settings). */
-function levelHints(t: Messages): Record<"hand" | "winner" | "pot" | "sidepot", string[]> {
+function levelHints(t: Messages): Record<ActiveMode, string[]> {
   const range = ([a, b]: readonly [number, number]) => t.people(a, b);
   const lv = [1, 2, 3, 4, 5] as const;
   return {
     hand: t.handHints,
     winner: lv.map((l, i) => t.winnerHint(range(WINNER_PLAYERS[l]), range(WINNER_SHOWDOWN[l])) + t.winnerExtras[i]),
-    pot: lv.map((l, i) => `${t.potStreets[i]} · ${range(POT_LEVELS[l].players)}${l === 5 ? t.potAllIn : ""}`),
     sidepot: lv.map((l, i) => `${range(SIDEPOT_LEVELS[l].players)}${t.sidepotExtras[i]}`),
+    rake: t.rakeHints,
   };
 }
 
@@ -327,12 +330,12 @@ function SettingsPanel({ modeKey }: { modeKey: SessionModeKey }) {
   if (!stats) return null;
   const s = stats.settings;
   const mixed = modeKey === "quick" || modeKey === "weakness";
-  const playerMode: PlayerSettingMode | null = modeKey === "winner" || modeKey === "pot" || modeKey === "sidepot" ? modeKey : null;
-  const showAnte = mixed || modeKey === "pot" || modeKey === "sidepot";
+  const playerMode: PlayerSettingMode | null = modeKey === "winner" || modeKey === "sidepot" ? modeKey : null;
+  const showAnte = mixed || modeKey === "sidepot";
   const showCards = mixed || modeKey === "winner" || modeKey === "hand";
-  const showCash = mixed || modeKey === "pot";
+  const showCash = mixed || modeKey === "rake";
   const cash = s.cash;
-  if (!playerMode && !showAnte && !showCards) return null;
+  if (!playerMode && !showAnte && !showCards && !showCash) return null;
   return (
     <Panel className="flex flex-col gap-4 p-4">
       {playerMode && (
@@ -355,7 +358,7 @@ function SettingsPanel({ modeKey }: { modeKey: SessionModeKey }) {
         <div>
           <Label>
             {t.anteLabel}
-            {mixed && " · POT / SIDE POT"}
+            {mixed && " · SIDE POT"}
           </Label>
           <div className="mt-2 grid grid-cols-3 gap-1.5">
             {ANTE_OPTIONS.map((o) => (
@@ -371,45 +374,35 @@ function SettingsPanel({ modeKey }: { modeKey: SessionModeKey }) {
         <div>
           <Label>
             {t.cashLabel}
-            {mixed && " · POT"}
+            {mixed && " · RAKE"}
           </Label>
-          <div className="mt-2 grid grid-cols-2 gap-1.5">
-            <Chip active={cash.enabled} onClick={() => statsStore.setCash({ enabled: true })}>
-              {t.on}
-            </Chip>
-            <Chip active={!cash.enabled} onClick={() => statsStore.setCash({ enabled: false })}>
-              {t.off}
-            </Chip>
-          </div>
           <div className="mt-1 text-xs text-muted">{t.cashNote}</div>
-          {cash.enabled && (
-            <div className="mt-3 flex flex-col gap-3 rounded-lg border border-line p-3">
-              <div>
-                <div className="mb-1 text-xs font-semibold text-muted">{t.blindsLabel}</div>
-                <div className="grid grid-cols-2 gap-1.5 sm:grid-cols-4">
-                  {CASH_BLINDS.map((b) => (
-                    <Chip key={b.bb} active={cash.sb === b.sb && cash.bb === b.bb} onClick={() => statsStore.setCash({ sb: b.sb, bb: b.bb })}>
-                      {b.sb.toLocaleString("en-US")}/{b.bb.toLocaleString("en-US")}
-                    </Chip>
-                  ))}
-                </div>
+          <div className="mt-2 flex flex-col gap-3 rounded-lg border border-line p-3">
+            <div>
+              <div className="mb-1 text-xs font-semibold text-muted">{t.blindsLabel}</div>
+              <div className="grid grid-cols-2 gap-1.5 sm:grid-cols-4">
+                {CASH_BLINDS.map((b) => (
+                  <Chip key={b.bb} active={cash.sb === b.sb && cash.bb === b.bb} onClick={() => statsStore.setCash({ sb: b.sb, bb: b.bb })}>
+                    {b.sb.toLocaleString("en-US")}/{b.bb.toLocaleString("en-US")}
+                  </Chip>
+                ))}
               </div>
-              <div className="grid grid-cols-2 gap-2">
-                <NumberField label={t.rakePercent} value={cash.rake.percent} step={0.5} onCommit={(v) => statsStore.setCash({ rake: { ...cash.rake, percent: v } })} />
-                <NumberField label={t.rakeCap} value={cash.rake.cap} step={25} onCommit={(v) => statsStore.setCash({ rake: { ...cash.rake, cap: v } })} />
-              </div>
-              <ToggleRow label={t.noFlopNoDrop} on={cash.rake.noFlopNoDrop} onChange={(on) => statsStore.setCash({ rake: { ...cash.rake, noFlopNoDrop: on } })} />
-              <ToggleRow label={t.jackpotLabel} on={cash.rake.jackpot.enabled} onChange={(on) => statsStore.setCash({ rake: { ...cash.rake, jackpot: { ...cash.rake.jackpot, enabled: on } } })} />
-              {cash.rake.jackpot.enabled && (
-                <NumberField
-                  label={t.jackpotAmount}
-                  value={cash.rake.jackpot.amount}
-                  step={25}
-                  onCommit={(v) => statsStore.setCash({ rake: { ...cash.rake, jackpot: { ...cash.rake.jackpot, amount: v } } })}
-                />
-              )}
             </div>
-          )}
+            <div className="grid grid-cols-2 gap-2">
+              <NumberField label={t.rakePercent} value={cash.rake.percent} step={0.5} onCommit={(v) => statsStore.setCash({ rake: { ...cash.rake, percent: v } })} />
+              <NumberField label={t.rakeCap} value={cash.rake.cap} step={25} onCommit={(v) => statsStore.setCash({ rake: { ...cash.rake, cap: v } })} />
+            </div>
+            <ToggleRow label={t.noFlopNoDrop} on={cash.rake.noFlopNoDrop} onChange={(on) => statsStore.setCash({ rake: { ...cash.rake, noFlopNoDrop: on } })} />
+            <ToggleRow label={t.jackpotLabel} on={cash.rake.jackpot.enabled} onChange={(on) => statsStore.setCash({ rake: { ...cash.rake, jackpot: { ...cash.rake.jackpot, enabled: on } } })} />
+            {cash.rake.jackpot.enabled && (
+              <NumberField
+                label={t.jackpotAmount}
+                value={cash.rake.jackpot.amount}
+                step={25}
+                onCommit={(v) => statsStore.setCash({ rake: { ...cash.rake, jackpot: { ...cash.rake.jackpot, amount: v } } })}
+              />
+            )}
+          </div>
         </div>
       )}
       {showCards && (

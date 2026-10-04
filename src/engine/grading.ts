@@ -8,7 +8,8 @@ export type UserAnswer =
   | { mode: "hand"; category: HandCategory; boardCards?: Card[] }
   | { mode: "winner"; key: string; boardCards?: Card[] }
   | { mode: "pot"; amount?: number; amounts?: Record<string, number> }
-  | { mode: "sidepot"; amounts: Record<string, number> };
+  | { mode: "sidepot"; amounts: Record<string, number> }
+  | { mode: "rake"; amounts: Record<string, number> };
 
 export interface GradeResult {
   correct: boolean;
@@ -41,7 +42,8 @@ export function gradeAnswer(scenario: Scenario, answer: UserAnswer): GradeResult
       const parts = Object.fromEntries(scenario.questions.map((q) => [q.key, amounts[q.key] === q.answer]));
       return { correct: Object.values(parts).every(Boolean), parts };
     }
-    case "sidepot": {
+    case "sidepot":
+    case "rake": {
       const amounts = (answer as { amounts: Record<string, number> }).amounts;
       const parts = Object.fromEntries(scenario.questions.map((q) => [q.key, amounts[q.key] === q.answer]));
       return { correct: Object.values(parts).every(Boolean), parts };
