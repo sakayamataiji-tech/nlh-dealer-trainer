@@ -4,6 +4,7 @@
  */
 import type { AnteType } from "@/engine/actions";
 import type { HandEnding } from "@/engine/scenarioTypes";
+import type { RakeRounding } from "@/engine/rake";
 import type { Experience } from "@/stats/types";
 
 export type Lang = "ja" | "en";
@@ -11,6 +12,9 @@ export const LANGS: { value: Lang; label: string }[] = [
   { value: "ja", label: "日本語" },
   { value: "en", label: "English" },
 ];
+
+const ROUNDING_JA: Record<RakeRounding, string> = { down: "切り捨て", up: "切り上げ", nearest: "四捨五入" };
+const ROUNDING_EN: Record<RakeRounding, string> = { down: "Round down", up: "Round up", nearest: "Nearest" };
 
 type ModeSubKey = "hand" | "winner" | "pot" | "sidepot" | "rake" | "quick" | "weakness";
 
@@ -120,12 +124,15 @@ const ja = {
   noFlopNoDrop: "No Flop, No Drop（フロップ前に終わったハンドは取らない）",
   jackpotLabel: "Jackpot レーキ",
   jackpotAmount: "Jackpot 額",
-  rakeRuleSummary: (pct: number, cap: string | null, nfnd: boolean, jp: string | null) =>
-    `レーキ ${pct}%${cap ? `（MAX ${cap}）` : ""}${nfnd ? " · No Flop No Drop" : ""}${jp ? ` · Jackpot ${jp}` : ""}`,
+  rakeRuleSummary: (pct: number, cap: string | null, nfnd: boolean, jp: string | null, rounding: RakeRounding) =>
+    `レーキ ${pct}%（${ROUNDING_JA[rounding]}）${cap ? ` · MAX ${cap}` : ""}${nfnd ? " · No Flop No Drop" : ""}${jp ? ` · Jackpot ${jp}` : ""}`,
+  roundingLabel: "端数の処理",
+  roundingOptions: { down: "切り捨て", up: "切り上げ", nearest: "四捨五入" } as Record<RakeRounding, string>,
+  chipUnitNote: (unit: number) => `端数は ${unit} 単位で処理します（${unit === 1 ? "1チップのゲーム" : "最小チップ 25"}）。`,
   rakeTitle: "Rake / Jackpot",
   noFlopNoDropApplied: "フロップ前に終わったハンドなので、レーキ・ジャックポットは取りません（No Flop, No Drop）。",
-  rakeExplain: (pot: string, pct: number, raw: string, cap: string | null) =>
-    `${pot} × ${pct}% → ${raw}（25単位で切り捨て）${cap ? ` → MAX ${cap}` : ""}`,
+  rakeExplain: (pot: string, pct: number, exact: string, raw: string, unit: number, rounding: RakeRounding, cap: string | null) =>
+    `${pot} × ${pct}% = ${exact} → ${raw}（${unit}単位で${ROUNDING_JA[rounding]}）${cap ? ` → MAX ${cap}` : ""}`,
   rakeQ: "レーキを取って、勝者への支払額は？",
   rakeSub: (lvl: number) => `LEVEL ${lvl} · ハンド終了時のポット（戻したベットは除く）`,
   rakeHints: [
@@ -256,10 +263,15 @@ const en: Messages = {
   noFlopNoDrop: "No flop, no drop",
   jackpotLabel: "Jackpot drop",
   jackpotAmount: "Jackpot amount",
-  rakeRuleSummary: (pct, cap, nfnd, jp) => `Rake ${pct}%${cap ? ` (MAX ${cap})` : ""}${nfnd ? " · no flop no drop" : ""}${jp ? ` · jackpot ${jp}` : ""}`,
+  rakeRuleSummary: (pct, cap, nfnd, jp, rounding) =>
+    `Rake ${pct}% (${ROUNDING_EN[rounding]})${cap ? ` · MAX ${cap}` : ""}${nfnd ? " · no flop no drop" : ""}${jp ? ` · jackpot ${jp}` : ""}`,
+  roundingLabel: "Rounding",
+  roundingOptions: { down: "Round down", up: "Round up", nearest: "Nearest" },
+  chipUnitNote: (unit) => `Rounded to ${unit}s (${unit === 1 ? "1-chip game" : "smallest chip 25"}).`,
   rakeTitle: "Rake / Jackpot",
   noFlopNoDropApplied: "The hand ended before the flop, so no rake or jackpot is taken (no flop, no drop).",
-  rakeExplain: (pot, pct, raw, cap) => `${pot} × ${pct}% → ${raw} (rounded down to 25)${cap ? ` → MAX ${cap}` : ""}`,
+  rakeExplain: (pot, pct, exact, raw, unit, rounding, cap) =>
+    `${pot} × ${pct}% = ${exact} → ${raw} (${ROUNDING_EN[rounding].toLowerCase()} to ${unit}s)${cap ? ` → MAX ${cap}` : ""}`,
   rakeQ: "Take the rake — what is the payout?",
   rakeSub: (lvl) => `LEVEL ${lvl} · final pot (uncalled bets already returned)`,
   rakeHints: [

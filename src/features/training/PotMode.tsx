@@ -8,6 +8,7 @@ import { CardBack } from "@/components/PlayingCard";
 import { NumberInput } from "@/components/NumberInput";
 import { Panel, Label } from "@/components/ui/panel";
 import { cn, formatChips } from "@/lib/utils";
+import { formatExact } from "./RakeMode";
 import { useI18n } from "@/i18n";
 import { ActionLog } from "./ActionLog";
 import { ModeLayout, Question } from "./ModeLayout";
@@ -109,7 +110,7 @@ export function PotMode({ scenario, answered, onAnswer, verdict, startTimer }: M
         <Question sub={done ? t.potSub(scenario.level, STREET_LABEL[scenario.askStreet]) : t.potPlaying}>
           {answered || !q || q.key === "pot" ? t.potQ : t.howMuch(q.label)}
         </Question>
-        {rk && <div className="mt-1 text-xs text-brass">{t.rakeRuleSummary(rk.rule.percent, rk.rule.cap ? formatChips(rk.rule.cap) : null, rk.rule.noFlopNoDrop, rk.rule.jackpot.enabled ? formatChips(rk.rule.jackpot.amount) : null)}</div>}
+        {rk && <div className="mt-1 text-xs text-brass">{t.rakeRuleSummary(rk.rule.percent, rk.rule.cap ? formatChips(rk.rule.cap) : null, rk.rule.noFlopNoDrop, rk.rule.jackpot.enabled ? formatChips(rk.rule.jackpot.amount) : null, rk.rule.rounding)}</div>}
         {!answered && qs.length > 1 && (
           <div className="mt-2 flex flex-wrap gap-1.5">
             {qs.map((qq, i) => (
@@ -194,7 +195,7 @@ export function PotMode({ scenario, answered, onAnswer, verdict, startTimer }: M
                 </table>
                 {!rk.reason && (
                   <div className="mt-1 text-xs text-muted">
-                    {t.rakeExplain(formatChips(scenario.answer), rk.rule.percent, formatChips(rk.uncapped), rk.rule.cap && rk.uncapped > rk.rule.cap ? formatChips(rk.rule.cap) : null)}
+                    {t.rakeExplain(formatChips(scenario.answer), rk.rule.percent, formatExact((scenario.answer * rk.rule.percent) / 100), formatChips(rk.uncapped), rk.unit, rk.rule.rounding, rk.rule.cap && rk.uncapped > rk.rule.cap ? formatChips(rk.rule.cap) : null)}
                   </div>
                 )}
               </div>

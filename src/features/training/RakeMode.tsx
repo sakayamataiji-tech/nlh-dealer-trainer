@@ -10,6 +10,11 @@ import { useI18n } from "@/i18n";
 import { ModeLayout, Question } from "./ModeLayout";
 import type { ModeViewProps } from "./types";
 
+/** Unrounded rake for the explanation, e.g. 3.7 or 166.25. */
+export function formatExact(x: number): string {
+  return Number(x.toFixed(4)).toLocaleString("en-US", { maximumFractionDigits: 4 });
+}
+
 const BOARD_COUNT: Record<HandEnding, number> = { "preflop-fold": 0, flop: 3, turn: 4, river: 5, "allin-runout": 5 };
 
 /**
@@ -68,7 +73,7 @@ export function RakeMode({ scenario, answered, onAnswer, verdict }: ModeViewProp
       <Panel className="p-3 sm:p-4">
         <Question sub={t.rakeSub(scenario.level)}>{answered || !q ? t.rakeQ : t.howMuch(q.label)}</Question>
         <div className="mt-1 text-xs text-brass">
-          {t.rakeRuleSummary(rule.percent, rule.cap ? formatChips(rule.cap) : null, rule.noFlopNoDrop, rule.jackpot.enabled ? formatChips(rule.jackpot.amount) : null)}
+          {t.rakeRuleSummary(rule.percent, rule.cap ? formatChips(rule.cap) : null, rule.noFlopNoDrop, rule.jackpot.enabled ? formatChips(rule.jackpot.amount) : null, rule.rounding)}
         </div>
         {!answered && qs.length > 1 && (
           <div className="mt-2 flex flex-wrap gap-1.5">
@@ -114,7 +119,7 @@ export function RakeMode({ scenario, answered, onAnswer, verdict }: ModeViewProp
                 <>
                   {scenario.ending === "allin-runout" && rule.noFlopNoDrop && <div className="text-warn">{t.runoutNote}</div>}
                   <div>
-                    RAKE: {t.rakeExplain(formatChips(scenario.pot), rule.percent, formatChips(r.uncapped), rule.cap && r.uncapped > rule.cap ? formatChips(rule.cap) : null)}
+                    RAKE: {t.rakeExplain(formatChips(scenario.pot), rule.percent, formatExact((scenario.pot * rule.percent) / 100), formatChips(r.uncapped), r.unit, rule.rounding, rule.cap && r.uncapped > rule.cap ? formatChips(rule.cap) : null)}
                   </div>
                 </>
               )}

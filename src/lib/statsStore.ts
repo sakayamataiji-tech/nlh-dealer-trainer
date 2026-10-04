@@ -14,7 +14,7 @@ import {
   type StatsData,
 } from "@/stats/types";
 import type { AnteType, Level, TrainingMode } from "@/engine/scenarioTypes";
-import { normalizeRakeRule } from "@/engine/rake";
+import { chipUnit, DEFAULT_RAKE_RULE, normalizeRakeRule, SMALL_GAME_RAKE_RULE } from "@/engine/rake";
 
 /** Client-side store over a StatsRepository (swap the repository to move to a backend). */
 class StatsStore {
@@ -70,7 +70,10 @@ class StatsStore {
   setCash(patch: Partial<CashSettings>) {
     this.update((d) => {
       const cash = { ...d.settings.cash, ...patch };
-      return { ...d, settings: { ...d.settings, cash: { ...cash, rake: normalizeRakeRule(cash.rake) } } };
+      const unit = chipUnit(cash.bb);
+      // Switching between 1-chip and 25-chip stakes: start from that kind of game's usual rule.
+      if (unit !== chipUnit(d.settings.cash.bb) && !patch.rake) cash.rake = { ...(unit === 1 ? SMALL_GAME_RAKE_RULE : DEFAULT_RAKE_RULE), rounding: cash.rake.rounding };
+      return { ...d, settings: { ...d.settings, cash: { ...cash, rake: normalizeRakeRule(cash.rake, unit) } } };
     });
   }
   setPlaybackSpeed(speed: 1 | 2 | 3) {

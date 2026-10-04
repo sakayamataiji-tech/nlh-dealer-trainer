@@ -8,6 +8,7 @@ import { longestStreak, weakestSkill } from "@/stats/aggregate";
 import { ANTE_OPTIONS, SESSION_LENGTHS, type AnswerRecord, type PlayerSettingMode, type SessionLength, type SessionSummary } from "@/stats/types";
 import { CASH_BLINDS, SIDEPOT_LEVELS, WINNER_PLAYERS, WINNER_SHOWDOWN } from "@/engine/scenarioGenerator";
 import { statsStore, useStats } from "@/lib/statsStore";
+import { chipUnit, RAKE_ROUNDINGS } from "@/engine/rake";
 import { Button } from "@/components/ui/button";
 import { Kbd, Label, Panel } from "@/components/ui/panel";
 import { cn } from "@/lib/utils";
@@ -335,6 +336,7 @@ function SettingsPanel({ modeKey }: { modeKey: SessionModeKey }) {
   const showCards = mixed || modeKey === "winner" || modeKey === "hand";
   const showCash = mixed || modeKey === "rake";
   const cash = s.cash;
+  const unit = chipUnit(cash.bb);
   if (!playerMode && !showAnte && !showCards && !showCash) return null;
   return (
     <Panel className="flex flex-col gap-4 p-4">
@@ -390,7 +392,18 @@ function SettingsPanel({ modeKey }: { modeKey: SessionModeKey }) {
             </div>
             <div className="grid grid-cols-2 gap-2">
               <NumberField label={t.rakePercent} value={cash.rake.percent} step={0.5} onCommit={(v) => statsStore.setCash({ rake: { ...cash.rake, percent: v } })} />
-              <NumberField label={t.rakeCap} value={cash.rake.cap} step={25} onCommit={(v) => statsStore.setCash({ rake: { ...cash.rake, cap: v } })} />
+              <NumberField label={t.rakeCap} value={cash.rake.cap} step={unit} onCommit={(v) => statsStore.setCash({ rake: { ...cash.rake, cap: v } })} />
+            </div>
+            <div>
+              <div className="mb-1 text-xs font-semibold text-muted">{t.roundingLabel}</div>
+              <div className="grid grid-cols-3 gap-1.5">
+                {RAKE_ROUNDINGS.map((r) => (
+                  <Chip key={r} active={cash.rake.rounding === r} onClick={() => statsStore.setCash({ rake: { ...cash.rake, rounding: r } })}>
+                    {t.roundingOptions[r]}
+                  </Chip>
+                ))}
+              </div>
+              <div className="mt-1 text-xs text-muted">{t.chipUnitNote(unit)}</div>
             </div>
             <ToggleRow label={t.noFlopNoDrop} on={cash.rake.noFlopNoDrop} onChange={(on) => statsStore.setCash({ rake: { ...cash.rake, noFlopNoDrop: on } })} />
             <ToggleRow label={t.jackpotLabel} on={cash.rake.jackpot.enabled} onChange={(on) => statsStore.setCash({ rake: { ...cash.rake, jackpot: { ...cash.rake.jackpot, enabled: on } } })} />
@@ -398,7 +411,7 @@ function SettingsPanel({ modeKey }: { modeKey: SessionModeKey }) {
               <NumberField
                 label={t.jackpotAmount}
                 value={cash.rake.jackpot.amount}
-                step={25}
+                step={unit}
                 onCommit={(v) => statsStore.setCash({ rake: { ...cash.rake, jackpot: { ...cash.rake.jackpot, amount: v } } })}
               />
             )}

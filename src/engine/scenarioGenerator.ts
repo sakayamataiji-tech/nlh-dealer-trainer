@@ -10,7 +10,7 @@ import type { AnteType, BlindStructure, Street, TableAction } from "./actions";
 import { STREETS } from "./actions";
 import { HandState } from "./bettingEngine";
 import { type BotContext, decide } from "./strategy";
-import { computeRake, DEFAULT_RAKE_RULE, roundDownToStep, type RakeRule } from "./rake";
+import { chipUnit, computeRake, DEFAULT_RAKE_RULE, roundDownToStep, type RakeRule } from "./rake";
 import { type Card, makeCard, rankValue, SUITS, suitOf, type Suit } from "./cards";
 import { createDeck, Dealer } from "./deck";
 import { resolveShowdown, type ShowdownResult } from "./handComparator";
@@ -513,7 +513,14 @@ const BLIND_OPTIONS: BlindStructure[] = [
 ];
 
 /** Blinds with the chosen ante: BB ante = 1 BB; traditional ante = 1/8 BB per player. */
-export const CASH_BLINDS: readonly { sb: number; bb: number }[] = BLIND_OPTIONS.map(({ sb, bb }) => ({ sb, bb }));
+/** Cash-game stakes for RAKE: small games played with 1-chips (1/2, 1/3 …) and the 25-chip games. */
+export const CASH_BLINDS: readonly { sb: number; bb: number }[] = [
+  { sb: 1, bb: 2 },
+  { sb: 1, bb: 3 },
+  { sb: 2, bb: 5 },
+  { sb: 5, bb: 10 },
+  ...BLIND_OPTIONS.map(({ sb, bb }) => ({ sb, bb })),
+];
 
 function pickBlinds(rng: Rng, ante: AnteType = "none", fixed?: { sb: number; bb: number } | null): BlindStructure {
   const b = fixed ? { sb: fixed.sb, bb: fixed.bb, ante: 0 } : pick(rng, BLIND_OPTIONS);
@@ -671,7 +678,7 @@ export function generatePotScenario(level: Level, opts: GenerateOptions = {}): P
     // Cash game: rake comes out of the final pot ("if the hand ended here"). The flop is seen
     // whenever the level goes past preflop (an early all-in runs the board out).
     const sawFlop = cfg.street !== "preflop";
-    const rake = opts.cash ? { ...computeRake(result.total, sawFlop, opts.cash.rake), rule: opts.cash.rake, sawFlop } : null;
+    const rake = opts.cash ? { ...computeRake(result.total, sawFlop, opts.cash.rake, chipUnit(opts.cash.bb)), rule: opts.cash.rake, sawFlop } : null;
     const questions = [
       { key: "pot", label: "POT", answer: result.total },
       ...(rake
@@ -808,12 +815,13 @@ const RAKE_POT_BB: Record<HandEnding, [number, number]> = {
   "allin-runout": [30, 250],
 };
 
-export const RAKE_LEVELS: Record<Level, { step: number; endings: Partial<Record<HandEnding, number>>; edge: number }> = {
-  1: { step: 100, endings: { flop: 4, turn: 3, river: 3, "preflop-fold": 1 }, edge: 0 },
-  2: { step: 100, endings: { flop: 3, turn: 3, river: 3, "preflop-fold": 2, "allin-runout": 1 }, edge: 0.2 },
-  3: { step: 25, endings: { flop: 3, turn: 3, river: 3, "preflop-fold": 2, "allin-runout": 1 }, edge: 0.35 },
-  4: { step: 25, endings: { flop: 2, turn: 3, river: 3, "preflop-fold": 2, "allin-runout": 2 }, edge: 0.5 },
-  5: { step: 25, endings: { flop: 2, turn: 2, river: 3, "preflop-fold": 2, "allin-runout": 3 }, edge: 0.6 },
+/** `round`: pots in round numbers (5s in 1-chip games, 100s otherwise); else any chip amount. */
+export const RAKE_LEVELS: Record<Level, { round: boolean; endings: Partial<Record<HandEnding, number>>; edge: number }> = {
+  1: { round: true, endings: { flop: 4, turn: 3, river: 3, "preflop-fold": 1 }, edge: 0 },
+  2: { round: true, endings: { flop: 3, turn: 3, river: 3, "preflop-fold": 2, "allin-runout": 1 }, edge: 0.2 },
+  3: { round: false, endings: { flop: 3, turn: 3, river: 3, "preflop-fold": 2, "allin-runout": 1 }, edge: 0.35 },
+  4: { round: false, endings: { flop: 2, turn: 3, river: 3, "preflop-fold": 2, "allin-runout": 2 }, edge: 0.5 },
+  5: { round: false, endings: { flop: 2, turn: 2, river: 3, "preflop-fold": 2, "allin-runout": 3 }, edge: 0.6 },
 };
 
 /**
@@ -826,7 +834,8 @@ export function generateRakeScenario(level: Level, opts: GenerateOptions = {}): 
   const cfg = RAKE_LEVELS[level];
   const blinds = opts.cash ? { sb: opts.cash.sb, bb: opts.cash.bb } : pick(rng, CASH_BLINDS);
   const rule = opts.cash?.rake ?? DEFAULT_RAKE_RULE;
-  const step = Math.max(cfg.step, RAKE_STEP_MIN);
+  const unit = chipUnit(blinds.bb);
+  const step = cfg.round ? (unit === 1 ? 5 : 100) : unit;
   const potIn = ([a, b]: [number, number]) => randInt(rng, Math.ceil((blinds.bb * a) / step), Math.max(Math.ceil((blinds.bb * a) / step), Math.floor((blinds.bb * b) / step))) * step;
   const endingFor = (pot: number): HandEnding => {
     const bb = pot / blinds.bb;
@@ -853,7 +862,17 @@ export function generateRakeScenario(level: Level, opts: GenerateOptions = {}): 
         }
       }
     }
-    const result = computeRake(pot, ending !== "preflop-fold", rule);
+    // Keep the percentage in play: when the MAX is low (small games), most pots over it are pulled under it.
+    const capPot = rule.cap > 0 && rule.percent > 0 ? (rule.cap * 100) / rule.percent : Infinity;
+    if (pot > capPot && capPot >= blinds.bb * 2 && rng() < 0.65) {
+      const lo = Math.ceil(Math.max(blinds.bb * 2, capPot * 0.3) / step);
+      const hi = Math.floor(capPot / step);
+      if (hi >= lo) {
+        pot = randInt(rng, lo, hi) * step;
+        if (ending !== "preflop-fold") ending = endingFor(pot);
+      }
+    }
+    const result = computeRake(pot, ending !== "preflop-fold", rule, unit);
     const skills: SkillTag[] = ["rake"];
     if (result.reason === "no-flop" || (ending === "allin-runout" && rule.noFlopNoDrop)) skills.push("no-flop-no-drop");
     if (rule.cap > 0 && result.uncapped > rule.cap) skills.push("rake-cap");
@@ -884,9 +903,6 @@ export function generateRakeScenario(level: Level, opts: GenerateOptions = {}): 
   }
   return fallback!;
 }
-
-/** Smallest chip in play (rake is rounded down to it as well). */
-const RAKE_STEP_MIN = 25;
 
 /* ------------------------------------------------------------------ */
 /* Entry point                                                        */

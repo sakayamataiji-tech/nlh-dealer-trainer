@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
-import { computeRake, normalizeRakeRule, type RakeRule } from "@/engine/rake";
+import { chipUnit, computeRake, normalizeRakeRule, roundToStep, type RakeRule } from "@/engine/rake";
 
-const rule = (p: Partial<RakeRule> = {}): RakeRule => ({ percent: 5, cap: 1000, noFlopNoDrop: true, jackpot: { enabled: false, amount: 0 }, ...p });
+const rule = (p: Partial<RakeRule> = {}): RakeRule => ({ percent: 5, cap: 1000, noFlopNoDrop: true, jackpot: { enabled: false, amount: 0 }, rounding: "down", ...p });
 
 describe("rake", () => {
   it("percent of the pot, rounded down to the smallest chip", () => {
@@ -13,7 +13,7 @@ describe("rake", () => {
     expect(computeRake(40000, true, rule({ cap: 0 }))).toMatchObject({ rake: 2000 });
   });
   it("no flop, no drop", () => {
-    expect(computeRake(5000, false, rule({ jackpot: { enabled: true, amount: 200 } }))).toEqual({ rake: 0, jackpot: 0, payout: 5000, reason: "no-flop", uncapped: 0 });
+    expect(computeRake(5000, false, rule({ jackpot: { enabled: true, amount: 200 } }))).toEqual({ rake: 0, jackpot: 0, payout: 5000, reason: "no-flop", uncapped: 0, unit: 25 });
     expect(computeRake(5000, false, rule({ noFlopNoDrop: false }))).toMatchObject({ rake: 250 });
   });
   it("jackpot drop is a fixed amount on top of the rake", () => {
@@ -30,13 +30,34 @@ describe("rake", () => {
       }
   });
   it("normalises settings input", () => {
-    expect(normalizeRakeRule({ percent: 5.3, cap: 1010, noFlopNoDrop: true, jackpot: { enabled: true, amount: 260 } })).toEqual({
+    expect(normalizeRakeRule(rule({ percent: 5.3, cap: 1010, jackpot: { enabled: true, amount: 260 } }))).toEqual({
       percent: 5.5,
       cap: 1000,
       noFlopNoDrop: true,
       jackpot: { enabled: true, amount: 250 },
+      rounding: "down",
     });
-    expect(normalizeRakeRule({ percent: 99, cap: -5, noFlopNoDrop: false, jackpot: { enabled: false, amount: NaN } })).toMatchObject({ percent: 20, cap: 0 });
+    expect(normalizeRakeRule(rule({ percent: 99, cap: -5, noFlopNoDrop: false, jackpot: { enabled: false, amount: NaN } }))).toMatchObject({ percent: 20, cap: 0 });
+    // 1-chip games keep single chips.
+    expect(normalizeRakeRule(rule({ cap: 6, jackpot: { enabled: true, amount: 1 } }), 1)).toMatchObject({ cap: 6, jackpot: { amount: 1 } });
+  });
+  it("rounds down, up or to nearest (halves up)", () => {
+    expect([roundToStep(4.35, 1, "down"), roundToStep(4.35, 1, "up"), roundToStep(4.35, 1, "nearest")]).toEqual([4, 5, 4]);
+    expect([roundToStep(4.5, 1, "down"), roundToStep(4.5, 1, "up"), roundToStep(4.5, 1, "nearest")]).toEqual([4, 5, 5]);
+    expect(roundToStep(4, 1, "up")).toBe(4);
+    expect(roundToStep(166.25, 25, "nearest")).toBe(175);
+    expect(roundToStep(162.5, 25, "nearest")).toBe(175);
+    expect(roundToStep(160, 25, "nearest")).toBe(150);
+  });
+  it("1/3 game: 1-chip rake with each rounding", () => {
+    expect(chipUnit(3)).toBe(1);
+    expect(chipUnit(200)).toBe(25);
+    const small = (rounding: RakeRule["rounding"]) => rule({ percent: 10, cap: 5, rounding, jackpot: { enabled: true, amount: 1 } });
+    expect(computeRake(37, true, small("down"), 1)).toMatchObject({ rake: 3, jackpot: 1, payout: 33 });
+    expect(computeRake(37, true, small("up"), 1)).toMatchObject({ rake: 4, jackpot: 1, payout: 32 });
+    expect(computeRake(35, true, small("nearest"), 1)).toMatchObject({ rake: 4, payout: 30 });
+    expect(computeRake(34, true, small("nearest"), 1)).toMatchObject({ rake: 3, payout: 30 });
+    expect(computeRake(87, true, small("up"), 1)).toMatchObject({ rake: 5, uncapped: 9, payout: 81 });
   });
 });
 
@@ -80,13 +101,13 @@ describe("RAKE mode", () => {
 
   it("answers always come from computeRake with the house rule", () => {
     const rng = seededRng(31);
-    const jp = cash({ percent: 10, cap: 4000, jackpot: { enabled: true, amount: 1000 } });
+    const jp = cash({ percent: 10, cap: 4000, jackpot: { enabled: true, amount: 1000 }, rounding: "nearest" });
     for (const level of LEVELS)
       for (let i = 0; i < 60; i++) {
         const s = generateRakeScenario(level, { rng, cash: jp });
         expect(s.pot % 25).toBe(0);
         expect(s.pot).toBeGreaterThan(0);
-        const expected = computeRake(s.pot, s.ending !== "preflop-fold", jp.rake);
+        const expected = computeRake(s.pot, s.ending !== "preflop-fold", jp.rake, 25);
         expect(s.result).toEqual(expected);
         expect(s.questions.map((q) => q.key)).toEqual(["rake", "jackpot", "payout"]);
         expect(s.questions.map((q) => q.answer)).toEqual([expected.rake, expected.jackpot, expected.payout]);
@@ -112,6 +133,22 @@ describe("RAKE mode", () => {
       s.skills.forEach((k) => seen.add(k));
     }
     for (const k of ["preflop-fold", "allin-runout", "no-flop-no-drop", "rake-cap"]) expect(seen).toContain(k);
+  });
+
+  it("1/3 game: pots and rake in single chips", () => {
+    const rng = seededRng(36);
+    const small = { sb: 1, bb: 3, rake: rule({ percent: 10, cap: 5, rounding: "up", jackpot: { enabled: true, amount: 1 } }) };
+    let odd = 0;
+    for (const level of LEVELS)
+      for (let i = 0; i < 40; i++) {
+        const s = generateRakeScenario(level, { rng, cash: small });
+        if (level <= 2) expect(s.pot % 5).toBe(0);
+        if (s.pot % 5) odd++;
+        expect(s.pot).toBeGreaterThanOrEqual(3);
+        expect(s.pot).toBeLessThanOrEqual(3 * 400);
+        expect(s.result).toEqual(computeRake(s.pot, s.ending !== "preflop-fold", small.rake, 1));
+      }
+    expect(odd).toBeGreaterThan(20);
   });
 
   it("weakness focus is honoured", () => {
