@@ -1,3 +1,4 @@
+import { chipUnit } from "@/engine/rake";
 import { emptyStats, MAX_RECORDS, MAX_SESSIONS, SCHEMA_VERSION, type AnswerRecord, type SessionSummary, type StatsData } from "./types";
 
 /**
@@ -30,6 +31,8 @@ export function migrate(raw: unknown): StatsData {
         cash: {
           ...base.settings.cash,
           ...doc.settings?.cash,
+          // Saved before the chip unit was a setting: derive it from the blinds.
+          unit: doc.settings?.cash?.unit ?? (doc.settings?.cash?.sb && doc.settings.cash.bb ? chipUnit(doc.settings.cash.sb, doc.settings.cash.bb) : base.settings.cash.unit),
           rake: { ...base.settings.cash.rake, ...doc.settings?.cash?.rake, jackpot: { ...base.settings.cash.rake.jackpot, ...doc.settings?.cash?.rake?.jackpot } },
         },
       },

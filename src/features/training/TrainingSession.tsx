@@ -6,9 +6,9 @@ import { gradeAnswer, rateSpeed, scoreAnswer, type UserAnswer } from "@/engine/g
 import { LEVELS, type ActiveMode, type Level, type Scenario } from "@/engine/scenarioTypes";
 import { longestStreak, weakestSkill } from "@/stats/aggregate";
 import { ANTE_OPTIONS, SESSION_LENGTHS, type AnswerRecord, type PlayerSettingMode, type SessionLength, type SessionSummary } from "@/stats/types";
-import { CASH_BLINDS, SIDEPOT_LEVELS, WINNER_PLAYERS, WINNER_SHOWDOWN } from "@/engine/scenarioGenerator";
+import { SIDEPOT_LEVELS, WINNER_PLAYERS, WINNER_SHOWDOWN } from "@/engine/scenarioGenerator";
 import { statsStore, useStats } from "@/lib/statsStore";
-import { chipUnit, RAKE_ROUNDINGS } from "@/engine/rake";
+import { CHIP_UNITS, RAKE_ROUNDINGS } from "@/engine/rake";
 import { Button } from "@/components/ui/button";
 import { Kbd, Label, Panel } from "@/components/ui/panel";
 import { cn } from "@/lib/utils";
@@ -336,7 +336,7 @@ function SettingsPanel({ modeKey }: { modeKey: SessionModeKey }) {
   const showCards = mixed || modeKey === "winner" || modeKey === "hand";
   const showCash = mixed || modeKey === "rake";
   const cash = s.cash;
-  const unit = chipUnit(cash.bb);
+  const unit = cash.unit;
   if (!playerMode && !showAnte && !showCards && !showCash) return null;
   return (
     <Panel className="flex flex-col gap-4 p-4">
@@ -380,16 +380,11 @@ function SettingsPanel({ modeKey }: { modeKey: SessionModeKey }) {
           </Label>
           <div className="mt-1 text-xs text-muted">{t.cashNote}</div>
           <div className="mt-2 flex flex-col gap-3 rounded-lg border border-line p-3">
-            <div>
-              <div className="mb-1 text-xs font-semibold text-muted">{t.blindsLabel}</div>
-              <div className="grid grid-cols-2 gap-1.5 sm:grid-cols-4">
-                {CASH_BLINDS.map((b) => (
-                  <Chip key={b.bb} active={cash.sb === b.sb && cash.bb === b.bb} onClick={() => statsStore.setCash({ sb: b.sb, bb: b.bb })}>
-                    {b.sb.toLocaleString("en-US")}/{b.bb.toLocaleString("en-US")}
-                  </Chip>
-                ))}
-              </div>
+            <div className="grid grid-cols-2 gap-2">
+              <NumberField label="SB" value={cash.sb} step={1} onCommit={(v) => statsStore.setCash({ sb: v })} />
+              <NumberField label="BB" value={cash.bb} step={1} onCommit={(v) => statsStore.setCash({ bb: v })} />
             </div>
+            {cash.sb > cash.bb && <div className="-mt-2 text-xs text-warn">{t.sbOverBb}</div>}
             <div className="grid grid-cols-2 gap-2">
               <NumberField label={t.rakePercent} value={cash.rake.percent} step={0.5} onCommit={(v) => statsStore.setCash({ rake: { ...cash.rake, percent: v } })} />
               <NumberField label={t.rakeCap} value={cash.rake.cap} step={unit} onCommit={(v) => statsStore.setCash({ rake: { ...cash.rake, cap: v } })} />
@@ -400,6 +395,16 @@ function SettingsPanel({ modeKey }: { modeKey: SessionModeKey }) {
                 {RAKE_ROUNDINGS.map((r) => (
                   <Chip key={r} active={cash.rake.rounding === r} onClick={() => statsStore.setCash({ rake: { ...cash.rake, rounding: r } })}>
                     {t.roundingOptions[r]}
+                  </Chip>
+                ))}
+              </div>
+            </div>
+            <div>
+              <div className="mb-1 text-xs font-semibold text-muted">{t.chipUnitLabel}</div>
+              <div className="grid grid-cols-4 gap-1.5">
+                {CHIP_UNITS.map((u) => (
+                  <Chip key={u} active={unit === u} onClick={() => statsStore.setCash({ unit: u })}>
+                    {u}
                   </Chip>
                 ))}
               </div>

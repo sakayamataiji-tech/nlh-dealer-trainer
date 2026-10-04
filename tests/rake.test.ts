@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { chipUnit, computeRake, normalizeRakeRule, roundToStep, type RakeRule } from "@/engine/rake";
+import { chipUnit, computeRake, normalizeBlinds, normalizeRakeRule, roundToStep, type RakeRule } from "@/engine/rake";
 
 const rule = (p: Partial<RakeRule> = {}): RakeRule => ({ percent: 5, cap: 1000, noFlopNoDrop: true, jackpot: { enabled: false, amount: 0 }, rounding: "down", ...p });
 
@@ -32,14 +32,17 @@ describe("rake", () => {
   it("normalises settings input", () => {
     expect(normalizeRakeRule(rule({ percent: 5.3, cap: 1010, jackpot: { enabled: true, amount: 260 } }))).toEqual({
       percent: 5.5,
-      cap: 1000,
+      cap: 1010,
       noFlopNoDrop: true,
-      jackpot: { enabled: true, amount: 250 },
+      jackpot: { enabled: true, amount: 260 },
       rounding: "down",
     });
     expect(normalizeRakeRule(rule({ percent: 99, cap: -5, noFlopNoDrop: false, jackpot: { enabled: false, amount: NaN } }))).toMatchObject({ percent: 20, cap: 0 });
-    // 1-chip games keep single chips.
-    expect(normalizeRakeRule(rule({ cap: 6, jackpot: { enabled: true, amount: 1 } }), 1)).toMatchObject({ cap: 6, jackpot: { amount: 1 } });
+    // Single chips are kept (small games).
+    expect(normalizeRakeRule(rule({ cap: 6.7, jackpot: { enabled: true, amount: 1 } }))).toMatchObject({ cap: 6, jackpot: { amount: 1 } });
+    expect(normalizeBlinds(0, -3)).toEqual({ sb: 1, bb: 1 });
+    expect(normalizeBlinds(5, 2)).toEqual({ sb: 5, bb: 2 });
+    expect(normalizeBlinds(1.5, 3)).toEqual({ sb: 1, bb: 3 });
   });
   it("rounds down, up or to nearest (halves up)", () => {
     expect([roundToStep(4.35, 1, "down"), roundToStep(4.35, 1, "up"), roundToStep(4.35, 1, "nearest")]).toEqual([4, 5, 4]);
@@ -50,8 +53,10 @@ describe("rake", () => {
     expect(roundToStep(160, 25, "nearest")).toBe(150);
   });
   it("1/3 game: 1-chip rake with each rounding", () => {
-    expect(chipUnit(3)).toBe(1);
-    expect(chipUnit(200)).toBe(25);
+    expect(chipUnit(1, 3)).toBe(1);
+    expect(chipUnit(2, 5)).toBe(1);
+    expect(chipUnit(10, 20)).toBe(5);
+    expect(chipUnit(100, 200)).toBe(25);
     const small = (rounding: RakeRule["rounding"]) => rule({ percent: 10, cap: 5, rounding, jackpot: { enabled: true, amount: 1 } });
     expect(computeRake(37, true, small("down"), 1)).toMatchObject({ rake: 3, jackpot: 1, payout: 33 });
     expect(computeRake(37, true, small("up"), 1)).toMatchObject({ rake: 4, jackpot: 1, payout: 32 });
@@ -149,6 +154,18 @@ describe("RAKE mode", () => {
         expect(s.result).toEqual(computeRake(s.pot, s.ending !== "preflop-fold", small.rake, 1));
       }
     expect(odd).toBeGreaterThan(20);
+  });
+
+  it("uses the chip unit from the settings (e.g. 5/10 with 5-chips)", () => {
+    const rng = seededRng(37);
+    const c = { sb: 5, bb: 10, unit: 5, rake: rule({ percent: 10, cap: 50, rounding: "nearest" }) };
+    for (const level of LEVELS)
+      for (let i = 0; i < 30; i++) {
+        const s = generateRakeScenario(level, { rng, cash: c });
+        expect(s.pot % 5).toBe(0);
+        expect(s.result.rake % 5).toBe(0);
+        expect(s.result).toEqual(computeRake(s.pot, s.ending !== "preflop-fold", c.rake, 5));
+      }
   });
 
   it("weakness focus is honoured", () => {

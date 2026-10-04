@@ -128,7 +128,9 @@ const ja = {
     `レーキ ${pct}%（${ROUNDING_JA[rounding]}）${cap ? ` · MAX ${cap}` : ""}${nfnd ? " · No Flop No Drop" : ""}${jp ? ` · Jackpot ${jp}` : ""}`,
   roundingLabel: "端数の処理",
   roundingOptions: { down: "切り捨て", up: "切り上げ", nearest: "四捨五入" } as Record<RakeRounding, string>,
-  chipUnitNote: (unit: number) => `端数は ${unit} 単位で処理します（${unit === 1 ? "1チップのゲーム" : "最小チップ 25"}）。`,
+  chipUnitLabel: "最小チップ（端数の単位）",
+  sbOverBb: "SB が BB より大きくなっています。",
+  chipUnitNote: (unit: number) => `レーキの端数は ${unit} 単位で処理します。ブラインドを変えると自動で設定されます。`,
   rakeTitle: "Rake / Jackpot",
   noFlopNoDropApplied: "フロップ前に終わったハンドなので、レーキ・ジャックポットは取りません（No Flop, No Drop）。",
   rakeExplain: (pot: string, pct: number, exact: string, raw: string, unit: number, rounding: RakeRounding, cap: string | null) =>
@@ -267,7 +269,9 @@ const en: Messages = {
     `Rake ${pct}% (${ROUNDING_EN[rounding]})${cap ? ` · MAX ${cap}` : ""}${nfnd ? " · no flop no drop" : ""}${jp ? ` · jackpot ${jp}` : ""}`,
   roundingLabel: "Rounding",
   roundingOptions: { down: "Round down", up: "Round up", nearest: "Nearest" },
-  chipUnitNote: (unit) => `Rounded to ${unit}s (${unit === 1 ? "1-chip game" : "smallest chip 25"}).`,
+  chipUnitLabel: "Smallest chip (rounding unit)",
+  sbOverBb: "The SB is larger than the BB.",
+  chipUnitNote: (unit) => `The rake is rounded to ${unit}s. Set automatically when the blinds change.`,
   rakeTitle: "Rake / Jackpot",
   noFlopNoDropApplied: "The hand ended before the flop, so no rake or jackpot is taken (no flop, no drop).",
   rakeExplain: (pot, pct, exact, raw, unit, rounding, cap) =>

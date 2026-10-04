@@ -14,7 +14,7 @@ import {
   type StatsData,
 } from "@/stats/types";
 import type { AnteType, Level, TrainingMode } from "@/engine/scenarioTypes";
-import { chipUnit, DEFAULT_RAKE_RULE, normalizeRakeRule, SMALL_GAME_RAKE_RULE } from "@/engine/rake";
+import { chipUnit, CHIP_UNITS, DEFAULT_RAKE_RULE, normalizeBlinds, normalizeRakeRule, SMALL_GAME_RAKE_RULE } from "@/engine/rake";
 
 /** Client-side store over a StatsRepository (swap the repository to move to a backend). */
 class StatsStore {
@@ -69,11 +69,17 @@ class StatsStore {
   }
   setCash(patch: Partial<CashSettings>) {
     this.update((d) => {
-      const cash = { ...d.settings.cash, ...patch };
-      const unit = chipUnit(cash.bb);
-      // Switching between 1-chip and 25-chip stakes: start from that kind of game's usual rule.
-      if (unit !== chipUnit(d.settings.cash.bb) && !patch.rake) cash.rake = { ...(unit === 1 ? SMALL_GAME_RAKE_RULE : DEFAULT_RAKE_RULE), rounding: cash.rake.rounding };
-      return { ...d, settings: { ...d.settings, cash: { ...cash, rake: normalizeRakeRule(cash.rake, unit) } } };
+      const prev = d.settings.cash;
+      const cash = { ...prev, ...patch, ...normalizeBlinds(patch.sb ?? prev.sb, patch.bb ?? prev.bb) };
+      if (patch.sb !== undefined || patch.bb !== undefined) {
+        // New blinds: pick their usual smallest chip; moving between small (1/5-chip) and
+        // 25-chip games starts from that kind of game's usual rule.
+        cash.unit = chipUnit(cash.sb, cash.bb);
+        const small = (u: number) => u < 25;
+        if (small(cash.unit) !== small(prev.unit) && !patch.rake) cash.rake = { ...(small(cash.unit) ? SMALL_GAME_RAKE_RULE : DEFAULT_RAKE_RULE), rounding: prev.rake.rounding };
+      }
+      if (!(CHIP_UNITS as readonly number[]).includes(cash.unit)) cash.unit = chipUnit(cash.sb, cash.bb);
+      return { ...d, settings: { ...d.settings, cash: { ...cash, rake: normalizeRakeRule(cash.rake) } } };
     });
   }
   setPlaybackSpeed(speed: 1 | 2 | 3) {

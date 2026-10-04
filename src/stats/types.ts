@@ -6,6 +6,8 @@ export interface CashSettings {
   enabled: boolean;
   sb: number;
   bb: number;
+  /** Smallest chip; the rake is rounded to it. */
+  unit: number;
   rake: RakeRule;
 }
 import type { SkillTag } from "@/engine/skills";
@@ -103,7 +105,7 @@ export function emptyStats(): StatsData {
       players: { winner: "auto", pot: "auto", sidepot: "auto" },
       selectBoardCards: true,
       playbackSpeed: 1,
-      cash: { enabled: false, sb: 100, bb: 200, rake: { ...DEFAULT_RAKE_RULE, jackpot: { ...DEFAULT_RAKE_RULE.jackpot } } },
+      cash: { enabled: false, sb: 100, bb: 200, unit: 25, rake: { ...DEFAULT_RAKE_RULE, jackpot: { ...DEFAULT_RAKE_RULE.jackpot } } },
     },
     records: [],
     streak: { current: 0, best: 0 },

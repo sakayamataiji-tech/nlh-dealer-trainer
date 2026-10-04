@@ -44,7 +44,7 @@ export interface GenerateOptions {
   /** Ante format for POT / SIDE POT. Default "none". */
   ante?: AnteType;
   /** RAKE (and POT): cash game with fixed blinds and a rake rule (null/undefined = off; RAKE then uses the default rule). */
-  cash?: { sb: number; bb: number; rake: RakeRule } | null;
+  cash?: { sb: number; bb: number; unit?: number; rake: RakeRule } | null;
   /** HAND / WINNER: also ask which board cards play in the hand. Default true. */
   selectBoardCards?: boolean;
 }
@@ -678,7 +678,7 @@ export function generatePotScenario(level: Level, opts: GenerateOptions = {}): P
     // Cash game: rake comes out of the final pot ("if the hand ended here"). The flop is seen
     // whenever the level goes past preflop (an early all-in runs the board out).
     const sawFlop = cfg.street !== "preflop";
-    const rake = opts.cash ? { ...computeRake(result.total, sawFlop, opts.cash.rake, chipUnit(opts.cash.bb)), rule: opts.cash.rake, sawFlop } : null;
+    const rake = opts.cash ? { ...computeRake(result.total, sawFlop, opts.cash.rake, opts.cash.unit ?? chipUnit(opts.cash.sb, opts.cash.bb)), rule: opts.cash.rake, sawFlop } : null;
     const questions = [
       { key: "pot", label: "POT", answer: result.total },
       ...(rake
@@ -815,7 +815,7 @@ const RAKE_POT_BB: Record<HandEnding, [number, number]> = {
   "allin-runout": [30, 250],
 };
 
-/** `round`: pots in round numbers (5s in 1-chip games, 100s otherwise); else any chip amount. */
+/** `round`: pots in round numbers (e.g. 5s in 1-chip games, 100s with 25-chips); else any chip amount. */
 export const RAKE_LEVELS: Record<Level, { round: boolean; endings: Partial<Record<HandEnding, number>>; edge: number }> = {
   1: { round: true, endings: { flop: 4, turn: 3, river: 3, "preflop-fold": 1 }, edge: 0 },
   2: { round: true, endings: { flop: 3, turn: 3, river: 3, "preflop-fold": 2, "allin-runout": 1 }, edge: 0.2 },
@@ -834,8 +834,9 @@ export function generateRakeScenario(level: Level, opts: GenerateOptions = {}): 
   const cfg = RAKE_LEVELS[level];
   const blinds = opts.cash ? { sb: opts.cash.sb, bb: opts.cash.bb } : pick(rng, CASH_BLINDS);
   const rule = opts.cash?.rake ?? DEFAULT_RAKE_RULE;
-  const unit = chipUnit(blinds.bb);
-  const step = cfg.round ? (unit === 1 ? 5 : 100) : unit;
+  const unit = opts.cash?.unit ?? chipUnit(blinds.sb, blinds.bb);
+  // Round pots: 5s with 1-chips, 25s with 5-chips, 100s with 25-chips …
+  const step = cfg.round ? unit * (unit < 25 ? 5 : 4) : unit;
   const potIn = ([a, b]: [number, number]) => randInt(rng, Math.ceil((blinds.bb * a) / step), Math.max(Math.ceil((blinds.bb * a) / step), Math.floor((blinds.bb * b) / step))) * step;
   const endingFor = (pot: number): HandEnding => {
     const bb = pot / blinds.bb;

@@ -2,7 +2,7 @@
  * Cash-game rake and jackpot drop, taken from the final pot (after uncalled bets are returned).
  *
  *  - Rake = pot × percent, rounded to the smallest chip (down / up / nearest, per house rule),
- *    capped at `cap` (0 = no cap). The smallest chip is 1 in small games (1/3 …), 25 otherwise.
+ *    capped at `cap` (0 = no cap). The smallest chip comes from the house settings (see chipUnit).
  *  - Jackpot drop = a fixed amount, taken only together with the rake (rake > 0) and only if
  *    something is still left for the winner.
  *  - No flop, no drop: a hand that ends before the flop pays neither.
@@ -13,9 +13,12 @@ export const RAKE_STEP = 25;
 export type RakeRounding = "down" | "up" | "nearest";
 export const RAKE_ROUNDINGS: RakeRounding[] = ["down", "up", "nearest"];
 
-/** Smallest chip for the blinds: 1 for small games (BB ≤ 10, e.g. 1/3), else 25. */
-export function chipUnit(bb: number): number {
-  return bb <= 10 ? 1 : RAKE_STEP;
+/** Chip units the rake can be rounded to (the smallest chip on the table). */
+export const CHIP_UNITS = [1, 5, 25, 100] as const;
+
+/** Default smallest chip for the blinds: the largest of 25 / 5 / 1 that both blinds are made of (1/3 → 1, 10/20 → 5, 100/200 → 25). */
+export function chipUnit(sb: number, bb: number): number {
+  return [25, 5, 1].find((u) => sb % u === 0 && bb % u === 0) ?? 1;
 }
 
 export interface RakeRule {
@@ -66,14 +69,20 @@ export function computeRake(pot: number, sawFlop: boolean, rule: RakeRule, unit 
   return { rake, jackpot, payout: pot - rake - jackpot, reason: null, uncapped, unit };
 }
 
-/** Normalise user input: percent 0–20 in 0.5 steps, amounts in chip steps. */
-export function normalizeRakeRule(r: RakeRule, unit = RAKE_STEP): RakeRule {
+/** Normalise user input: percent 0–20 in 0.5 steps, amounts in whole chips. */
+export function normalizeRakeRule(r: RakeRule): RakeRule {
   const clamp = (v: number, lo: number, hi: number) => Math.min(hi, Math.max(lo, Number.isFinite(v) ? v : lo));
   return {
     percent: Math.round(clamp(r.percent, 0, 20) * 2) / 2,
-    cap: roundDownToStep(clamp(r.cap, 0, 10_000_000), unit),
+    cap: Math.floor(clamp(r.cap, 0, 10_000_000)),
     noFlopNoDrop: !!r.noFlopNoDrop,
-    jackpot: { enabled: !!r.jackpot.enabled, amount: roundDownToStep(clamp(r.jackpot.amount, 0, 10_000_000), unit) },
+    jackpot: { enabled: !!r.jackpot.enabled, amount: Math.floor(clamp(r.jackpot.amount, 0, 10_000_000)) },
     rounding: RAKE_ROUNDINGS.includes(r.rounding) ? r.rounding : "down",
   };
+}
+
+/** Normalise blinds input: whole chips ≥ 1. SB > BB is allowed while typing (the settings warn). */
+export function normalizeBlinds(sb: number, bb: number): { sb: number; bb: number } {
+  const whole = (v: number) => Math.min(10_000_000, Math.max(1, Math.floor(Number.isFinite(v) ? v : 1)));
+  return { sb: whole(sb), bb: whole(bb) };
 }
