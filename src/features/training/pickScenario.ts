@@ -19,6 +19,7 @@ export function pickScenario(modeKey: SessionModeKey, stats: StatsData, rng: Rng
       ...opts,
       players: playersOf(m),
       ante: stats.settings.ante,
+      cash: stats.settings.cash.enabled ? stats.settings.cash : null,
       selectBoardCards: stats.settings.selectBoardCards,
     });
   };

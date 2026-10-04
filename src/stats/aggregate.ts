@@ -43,7 +43,7 @@ export function byLevel(records: readonly AnswerRecord[]): Record<Level, Summary
 
 /** Result of the main question (hand category / winner), ignoring the board-card step. */
 function mainPartCorrect(r: AnswerRecord): boolean {
-  return r.parts?.category ?? r.parts?.winner ?? r.correct;
+  return r.parts?.category ?? r.parts?.winner ?? r.parts?.pot ?? r.correct;
 }
 
 /**
@@ -61,6 +61,7 @@ export function bySkill(records: readonly AnswerRecord[]): { skill: SkillTag; la
     const main = mainPartCorrect(r);
     for (const s of r.skills) add(s, main === r.correct ? r : { ...r, correct: main });
     if (r.parts?.cards !== undefined) add("board-card-selection", { ...r, correct: r.parts.cards });
+    if (r.parts?.rake !== undefined) add("rake", { ...r, correct: r.parts.rake && (r.parts.jackpot ?? true) && (r.parts.payout ?? true) });
   }
   return [...map.entries()].map(([skill, rs]) => ({ skill, label: SKILLS[skill].label, summary: summarize(rs) }));
 }

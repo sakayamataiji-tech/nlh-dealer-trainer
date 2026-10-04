@@ -112,3 +112,13 @@ describe("backup export / import", () => {
     expect(parseBackup(JSON.stringify({ kind: "nlh-dealer-trainer-backup", data: { schemaVersion: 1, records: [{ id: 1 }] } }))).toBeNull();
   });
 });
+
+describe("rake skill tracking", () => {
+  it("scores the rake part separately from the pot", () => {
+    const rows = Object.fromEntries(
+      bySkill([rec({ mode: "pot", correct: false, skills: ["pot-multistreet"], parts: { pot: true, rake: false, payout: true } })]).map((r) => [r.skill, r.summary]),
+    );
+    expect(rows["pot-multistreet"].accuracy).toBe(1);
+    expect(rows["rake"].accuracy).toBe(0);
+  });
+});

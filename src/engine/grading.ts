@@ -7,7 +7,7 @@ import { isValidBoardSelection } from "./boardSelection";
 export type UserAnswer =
   | { mode: "hand"; category: HandCategory; boardCards?: Card[] }
   | { mode: "winner"; key: string; boardCards?: Card[] }
-  | { mode: "pot"; amount: number }
+  | { mode: "pot"; amount?: number; amounts?: Record<string, number> }
   | { mode: "sidepot"; amounts: Record<string, number> };
 
 export interface GradeResult {
@@ -34,8 +34,13 @@ export function gradeAnswer(scenario: Scenario, answer: UserAnswer): GradeResult
       const cardsOk = !!a.boardCards && boardSelectionCorrect(scenario, a.key, a.boardCards);
       return { correct: winnerOk && cardsOk, parts: { winner: winnerOk, cards: cardsOk } };
     }
-    case "pot":
-      return { correct: scenario.answer === (answer as { amount: number }).amount };
+    case "pot": {
+      const a = answer as { amount?: number; amounts?: Record<string, number> };
+      const amounts = a.amounts ?? { pot: a.amount ?? NaN };
+      if (scenario.questions.length <= 1) return { correct: amounts.pot === scenario.answer };
+      const parts = Object.fromEntries(scenario.questions.map((q) => [q.key, amounts[q.key] === q.answer]));
+      return { correct: Object.values(parts).every(Boolean), parts };
+    }
     case "sidepot": {
       const amounts = (answer as { amounts: Record<string, number> }).amounts;
       const parts = Object.fromEntries(scenario.questions.map((q) => [q.key, amounts[q.key] === q.answer]));

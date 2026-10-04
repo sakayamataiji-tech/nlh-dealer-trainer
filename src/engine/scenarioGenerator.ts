@@ -10,6 +10,7 @@ import type { AnteType, BlindStructure, Street, TableAction } from "./actions";
 import { STREETS } from "./actions";
 import { HandState } from "./bettingEngine";
 import { type BotContext, decide } from "./strategy";
+import { computeRake, type RakeRule } from "./rake";
 import { type Card, makeCard, rankValue, SUITS, suitOf, type Suit } from "./cards";
 import { createDeck, Dealer } from "./deck";
 import { resolveShowdown, type ShowdownResult } from "./handComparator";
@@ -40,6 +41,8 @@ export interface GenerateOptions {
   players?: number;
   /** Ante format for POT / SIDE POT. Default "none". */
   ante?: AnteType;
+  /** POT: cash game with fixed blinds and a rake (null/undefined = off). */
+  cash?: { sb: number; bb: number; rake: RakeRule } | null;
   /** HAND / WINNER: also ask which board cards play in the hand. Default true. */
   selectBoardCards?: boolean;
 }
@@ -508,8 +511,10 @@ const BLIND_OPTIONS: BlindStructure[] = [
 ];
 
 /** Blinds with the chosen ante: BB ante = 1 BB; traditional ante = 1/8 BB per player. */
-function pickBlinds(rng: Rng, ante: AnteType = "none"): BlindStructure {
-  const b = pick(rng, BLIND_OPTIONS);
+export const CASH_BLINDS: readonly { sb: number; bb: number }[] = BLIND_OPTIONS.map(({ sb, bb }) => ({ sb, bb }));
+
+function pickBlinds(rng: Rng, ante: AnteType = "none", fixed?: { sb: number; bb: number } | null): BlindStructure {
+  const b = fixed ? { sb: fixed.sb, bb: fixed.bb, ante: 0 } : pick(rng, BLIND_OPTIONS);
   if (ante === "bb") return { ...b, ante: b.bb, anteType: "bb" };
   if (ante === "all") return { ...b, ante: b.bb / 8, anteType: "all" };
   return { ...b, ante: 0, anteType: "none" };
@@ -639,7 +644,7 @@ export function generatePotScenario(level: Level, opts: GenerateOptions = {}): P
   const cfg = POT_LEVELS[level];
   let fallback: PotScenario | null = null;
   for (let attempt = 0; attempt < 1500; attempt++) {
-    const blinds = pickBlinds(rng, opts.ante);
+    const blinds = pickBlinds(rng, opts.ante, opts.cash);
     const unit = blinds.bb / cfg.unitDiv;
     const n = clampPlayers(opts.players, 2, 9) ?? randInt(rng, cfg.players[0], cfg.players[1]);
     const stacks = Array.from({ length: n }, () =>
@@ -661,6 +666,20 @@ export function generatePotScenario(level: Level, opts: GenerateOptions = {}): P
     if (result.uncalled) skills.push("uncalled-bet");
     if (result.anteTotal > 0) skills.push("ante");
     const voluntary = actions.filter((a) => a.type !== "post_sb" && a.type !== "post_bb" && a.type !== "ante").length;
+    // Cash game: rake comes out of the final pot ("if the hand ended here"). The flop is seen
+    // whenever the level goes past preflop (an early all-in runs the board out).
+    const sawFlop = cfg.street !== "preflop";
+    const rake = opts.cash ? { ...computeRake(result.total, sawFlop, opts.cash.rake), rule: opts.cash.rake, sawFlop } : null;
+    const questions = [
+      { key: "pot", label: "POT", answer: result.total },
+      ...(rake
+        ? [
+            { key: "rake", label: "RAKE", answer: rake.rake },
+            ...(rake.rule.jackpot.enabled ? [{ key: "jackpot", label: "JACKPOT", answer: rake.jackpot }] : []),
+            { key: "payout", label: "PAYOUT", answer: rake.payout },
+          ]
+        : []),
+    ];
     const scenario: PotScenario = {
       id: newId(rng),
       mode: "pot",
@@ -672,8 +691,10 @@ export function generatePotScenario(level: Level, opts: GenerateOptions = {}): P
       holes: ctx.holes,
       result,
       answer: result.total,
+      questions,
+      rake,
       skills,
-      targetSeconds: 3 + voluntary * 0.9,
+      targetSeconds: 3 + voluntary * 0.9 + (rake ? 4 * (questions.length - 1) : 0),
     };
     if (opts.focus && !skills.includes(opts.focus)) {
       fallback ??= scenario;

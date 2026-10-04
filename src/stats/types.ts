@@ -1,4 +1,13 @@
 import type { AnteType, Level, TrainingMode } from "@/engine/scenarioTypes";
+import type { RakeRule } from "@/engine/rake";
+
+/** Cash-game settings used by POT questions (house rules of the room). */
+export interface CashSettings {
+  enabled: boolean;
+  sb: number;
+  bb: number;
+  rake: RakeRule;
+}
 import type { SkillTag } from "@/engine/skills";
 import type { SpeedRating } from "@/engine/grading";
 
@@ -69,6 +78,8 @@ export interface StatsData {
     selectBoardCards: boolean;
     /** POT: action playback speed multiplier. */
     playbackSpeed: 1 | 2 | 3;
+    /** POT: cash game with rake / jackpot (house rules). */
+    cash: CashSettings;
     /** UI language; unset = follow the browser language. */
     lang?: "ja" | "en";
   };
@@ -92,6 +103,7 @@ export function emptyStats(): StatsData {
       players: { winner: "auto", pot: "auto", sidepot: "auto" },
       selectBoardCards: true,
       playbackSpeed: 1,
+      cash: { enabled: false, sb: 100, bb: 200, rake: { percent: 5, cap: 1000, noFlopNoDrop: true, jackpot: { enabled: false, amount: 200 } } },
     },
     records: [],
     streak: { current: 0, best: 0 },

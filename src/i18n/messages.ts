@@ -109,6 +109,21 @@ const ja = {
   importDone: (n: number) => `${n}件の回答データを読み込みました。`,
   importFailed: "読み込めませんでした。このアプリで書き出したバックアップファイルを選んでください。",
   offlineReady: "オフラインでも使えます",
+
+  cashLabel: "Cash Game / Rake（ハウスルール）",
+  cashNote: "POT の問題で、ポットの後にレーキ・ジャックポット・勝者への支払額（PAYOUT）も答えます。",
+  blindsLabel: "ブラインド",
+  rakePercent: "レーキ %",
+  rakeCap: "MAX（上限・0 = なし）",
+  noFlopNoDrop: "No Flop, No Drop（フロップ前に終わったハンドは取らない）",
+  jackpotLabel: "Jackpot レーキ",
+  jackpotAmount: "Jackpot 額",
+  rakeRuleSummary: (pct: number, cap: string | null, nfnd: boolean, jp: string | null) =>
+    `レーキ ${pct}%${cap ? `（MAX ${cap}）` : ""}${nfnd ? " · No Flop No Drop" : ""}${jp ? ` · Jackpot ${jp}` : ""}`,
+  rakeTitle: "Rake / Jackpot",
+  noFlopNoDropApplied: "フロップ前に終わったハンドなので、レーキ・ジャックポットは取りません（No Flop, No Drop）。",
+  rakeExplain: (pot: string, pct: number, raw: string, cap: string | null) =>
+    `${pot} × ${pct}% → ${raw}（25単位で切り捨て）${cap ? ` → MAX ${cap}` : ""}`,
 };
 
 export type Messages = typeof ja;
@@ -209,6 +224,19 @@ const en: Messages = {
   importDone: (n) => `Imported ${n} answers.`,
   importFailed: "Could not import. Please choose a backup file exported from this app.",
   offlineReady: "Works offline",
+
+  cashLabel: "Cash game / Rake (house rules)",
+  cashNote: "POT questions also ask for the rake, the jackpot drop and the payout to the winner.",
+  blindsLabel: "Blinds",
+  rakePercent: "Rake %",
+  rakeCap: "MAX (cap, 0 = none)",
+  noFlopNoDrop: "No flop, no drop",
+  jackpotLabel: "Jackpot drop",
+  jackpotAmount: "Jackpot amount",
+  rakeRuleSummary: (pct, cap, nfnd, jp) => `Rake ${pct}%${cap ? ` (MAX ${cap})` : ""}${nfnd ? " · no flop no drop" : ""}${jp ? ` · jackpot ${jp}` : ""}`,
+  rakeTitle: "Rake / Jackpot",
+  noFlopNoDropApplied: "The hand ended before the flop, so no rake or jackpot is taken (no flop, no drop).",
+  rakeExplain: (pot, pct, raw, cap) => `${pot} × ${pct}% → ${raw} (rounded down to 25)${cap ? ` → MAX ${cap}` : ""}`,
 };
 
 export const MESSAGES: Record<Lang, Messages> = { ja, en };

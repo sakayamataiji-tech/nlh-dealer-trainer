@@ -6,6 +6,7 @@ import {
   type AnswerRecord,
   type Experience,
   EXPERIENCE_OPTIONS,
+  type CashSettings,
   type PlayerSetting,
   type PlayerSettingMode,
   type SessionLength,
@@ -13,6 +14,7 @@ import {
   type StatsData,
 } from "@/stats/types";
 import type { AnteType, Level, TrainingMode } from "@/engine/scenarioTypes";
+import { normalizeRakeRule } from "@/engine/rake";
 
 /** Client-side store over a StatsRepository (swap the repository to move to a backend). */
 class StatsStore {
@@ -64,6 +66,12 @@ class StatsStore {
   }
   setLang(lang: "ja" | "en") {
     this.update((d) => ({ ...d, settings: { ...d.settings, lang } }));
+  }
+  setCash(patch: Partial<CashSettings>) {
+    this.update((d) => {
+      const cash = { ...d.settings.cash, ...patch };
+      return { ...d, settings: { ...d.settings, cash: { ...cash, rake: normalizeRakeRule(cash.rake) } } };
+    });
   }
   setPlaybackSpeed(speed: 1 | 2 | 3) {
     this.update((d) => ({ ...d, settings: { ...d.settings, playbackSpeed: speed } }));

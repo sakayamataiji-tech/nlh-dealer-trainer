@@ -6,7 +6,7 @@ import { gradeAnswer, rateSpeed, scoreAnswer, type UserAnswer } from "@/engine/g
 import { LEVELS, type Level, type Scenario } from "@/engine/scenarioTypes";
 import { longestStreak, weakestSkill } from "@/stats/aggregate";
 import { ANTE_OPTIONS, SESSION_LENGTHS, type AnswerRecord, type PlayerSettingMode, type SessionLength, type SessionSummary } from "@/stats/types";
-import { POT_LEVELS, SIDEPOT_LEVELS, WINNER_PLAYERS, WINNER_SHOWDOWN } from "@/engine/scenarioGenerator";
+import { CASH_BLINDS, POT_LEVELS, SIDEPOT_LEVELS, WINNER_PLAYERS, WINNER_SHOWDOWN } from "@/engine/scenarioGenerator";
 import { statsStore, useStats } from "@/lib/statsStore";
 import { Button } from "@/components/ui/button";
 import { Kbd, Label, Panel } from "@/components/ui/panel";
@@ -330,6 +330,8 @@ function SettingsPanel({ modeKey }: { modeKey: SessionModeKey }) {
   const playerMode: PlayerSettingMode | null = modeKey === "winner" || modeKey === "pot" || modeKey === "sidepot" ? modeKey : null;
   const showAnte = mixed || modeKey === "pot" || modeKey === "sidepot";
   const showCards = mixed || modeKey === "winner" || modeKey === "hand";
+  const showCash = mixed || modeKey === "pot";
+  const cash = s.cash;
   if (!playerMode && !showAnte && !showCards) return null;
   return (
     <Panel className="flex flex-col gap-4 p-4">
@@ -365,6 +367,51 @@ function SettingsPanel({ modeKey }: { modeKey: SessionModeKey }) {
           <div className="mt-1 text-xs text-muted">{t.anteNote}</div>
         </div>
       )}
+      {showCash && (
+        <div>
+          <Label>
+            {t.cashLabel}
+            {mixed && " · POT"}
+          </Label>
+          <div className="mt-2 grid grid-cols-2 gap-1.5">
+            <Chip active={cash.enabled} onClick={() => statsStore.setCash({ enabled: true })}>
+              {t.on}
+            </Chip>
+            <Chip active={!cash.enabled} onClick={() => statsStore.setCash({ enabled: false })}>
+              {t.off}
+            </Chip>
+          </div>
+          <div className="mt-1 text-xs text-muted">{t.cashNote}</div>
+          {cash.enabled && (
+            <div className="mt-3 flex flex-col gap-3 rounded-lg border border-line p-3">
+              <div>
+                <div className="mb-1 text-xs font-semibold text-muted">{t.blindsLabel}</div>
+                <div className="grid grid-cols-2 gap-1.5 sm:grid-cols-4">
+                  {CASH_BLINDS.map((b) => (
+                    <Chip key={b.bb} active={cash.sb === b.sb && cash.bb === b.bb} onClick={() => statsStore.setCash({ sb: b.sb, bb: b.bb })}>
+                      {b.sb.toLocaleString("en-US")}/{b.bb.toLocaleString("en-US")}
+                    </Chip>
+                  ))}
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-2">
+                <NumberField label={t.rakePercent} value={cash.rake.percent} step={0.5} onCommit={(v) => statsStore.setCash({ rake: { ...cash.rake, percent: v } })} />
+                <NumberField label={t.rakeCap} value={cash.rake.cap} step={25} onCommit={(v) => statsStore.setCash({ rake: { ...cash.rake, cap: v } })} />
+              </div>
+              <ToggleRow label={t.noFlopNoDrop} on={cash.rake.noFlopNoDrop} onChange={(on) => statsStore.setCash({ rake: { ...cash.rake, noFlopNoDrop: on } })} />
+              <ToggleRow label={t.jackpotLabel} on={cash.rake.jackpot.enabled} onChange={(on) => statsStore.setCash({ rake: { ...cash.rake, jackpot: { ...cash.rake.jackpot, enabled: on } } })} />
+              {cash.rake.jackpot.enabled && (
+                <NumberField
+                  label={t.jackpotAmount}
+                  value={cash.rake.jackpot.amount}
+                  step={25}
+                  onCommit={(v) => statsStore.setCash({ rake: { ...cash.rake, jackpot: { ...cash.rake.jackpot, amount: v } } })}
+                />
+              )}
+            </div>
+          )}
+        </div>
+      )}
       {showCards && (
         <div>
           <Label>
@@ -383,5 +430,46 @@ function SettingsPanel({ modeKey }: { modeKey: SessionModeKey }) {
         </div>
       )}
     </Panel>
+  );
+}
+
+/** Number setting that commits on blur / Enter (values are normalised by the store). */
+function NumberField({ label, value, step, onCommit }: { label: string; value: number; step: number; onCommit: (v: number) => void }) {
+  const [text, setText] = useState(String(value));
+  useEffect(() => setText(String(value)), [value]);
+  const commit = () => {
+    const v = Number(text);
+    if (Number.isFinite(v)) onCommit(v);
+    else setText(String(value));
+  };
+  return (
+    <label className="flex flex-col gap-1">
+      <span className="text-xs font-semibold text-muted">{label}</span>
+      <input
+        type="number"
+        inputMode="decimal"
+        min={0}
+        step={step}
+        value={text}
+        onChange={(e) => setText(e.target.value)}
+        onBlur={commit}
+        onKeyDown={(e) => {
+          if (e.key === "Enter") (e.target as HTMLInputElement).blur();
+          e.stopPropagation();
+        }}
+        className="h-11 rounded-lg border border-line bg-ink px-3 text-right text-base font-semibold tabular outline-none focus:border-brass"
+      />
+    </label>
+  );
+}
+
+function ToggleRow({ label, on, onChange }: { label: string; on: boolean; onChange: (on: boolean) => void }) {
+  return (
+    <button type="button" onClick={() => onChange(!on)} className="flex items-center justify-between gap-3 text-left text-sm" aria-pressed={on}>
+      <span>{label}</span>
+      <span className={cn("relative h-6 w-11 shrink-0 rounded-full transition-colors", on ? "bg-brass" : "bg-line")}>
+        <span className={cn("absolute top-0.5 h-5 w-5 rounded-full bg-ink transition-all", on ? "left-[1.375rem]" : "left-0.5")} />
+      </span>
+    </button>
   );
 }

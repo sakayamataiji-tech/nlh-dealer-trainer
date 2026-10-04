@@ -5,6 +5,7 @@ import type { EvaluatedHand, HandCategory } from "./handEvaluator";
 import type { PotResult } from "./potCalculator";
 import type { SidePotResult } from "./sidePotCalculator";
 import type { SkillTag } from "./skills";
+import type { RakeResult, RakeRule } from "./rake";
 
 export type TrainingMode = "hand" | "winner" | "pot" | "sidepot";
 export const TRAINING_MODES: readonly TrainingMode[] = ["hand", "winner", "pot", "sidepot"];
@@ -73,7 +74,12 @@ export interface PotScenario extends BaseScenario {
   holes: Record<string, Card[]>;
   /** Derived from potCalculator. */
   result: PotResult;
+  /** The pot (same as questions[0].answer). */
   answer: number;
+  /** POT, then RAKE / JACKPOT / PAYOUT when the cash-game rake is on. */
+  questions: NumericQuestion[];
+  /** Cash-game rake applied to the final pot (null when the rake is off). */
+  rake: (RakeResult & { rule: RakeRule; sawFlop: boolean }) | null;
 }
 
 export interface NumericQuestion {

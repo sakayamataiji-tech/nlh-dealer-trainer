@@ -27,6 +27,8 @@ export function PotMode({ scenario, answered, onAnswer, verdict, startTimer }: M
   const frames = useMemo(() => buildPlaybackFrames(scenario.players, scenario.blinds, scenario.actions), [scenario]);
   const { frame, prev, done, skip, replay } = usePlayback(frames, speed);
   const [value, setValue] = useState("");
+  const [step, setStep] = useState(0);
+  const [amounts, setAmounts] = useState<Record<string, number>>({});
   const [showLog, setShowLog] = useState(false);
   const r = scenario.result;
 
@@ -38,8 +40,20 @@ export function PotMode({ scenario, answered, onAnswer, verdict, startTimer }: M
   const collecting = frame.phase === "collect" && prev !== null;
   const view = collecting ? prev! : frame;
   const nameOf = (id: string) => scenario.players.find((p) => p.id === id)?.position ?? id;
-  const submit = () => value && done && onAnswer({ mode: "pot", amount: Number(value) });
-  const user = answered?.answer.mode === "pot" ? answered.answer.amount : null;
+  // POT, then (cash game) RAKE / JACKPOT / PAYOUT — one number at a time.
+  const qs = scenario.questions;
+  const q = qs[step];
+  const submit = () => {
+    if (!value || !done || !q) return;
+    const next = { ...amounts, [q.key]: Number(value) };
+    setAmounts(next);
+    setValue("");
+    if (step + 1 < qs.length) setStep(step + 1);
+    else onAnswer({ mode: "pot", amounts: next });
+  };
+  const userAmounts = answered?.answer.mode === "pot" ? (answered.answer.amounts ?? { pot: answered.answer.amount ?? NaN }) : {};
+  const user = answered ? userAmounts.pot ?? null : null;
+  const rk = scenario.rake;
   const many = scenario.players.length >= 7;
 
 
@@ -93,11 +107,22 @@ export function PotMode({ scenario, answered, onAnswer, verdict, startTimer }: M
       <ReplayControls done={done} skip={skip} replay={replay} />
       <Panel className="p-3 sm:p-4">
         <Question sub={done ? t.potSub(scenario.level, STREET_LABEL[scenario.askStreet]) : t.potPlaying}>
-          {t.potQ}
+          {answered || !q || q.key === "pot" ? t.potQ : t.howMuch(q.label)}
         </Question>
-        {!answered && (
+        {rk && <div className="mt-1 text-xs text-brass">{t.rakeRuleSummary(rk.rule.percent, rk.rule.cap ? formatChips(rk.rule.cap) : null, rk.rule.noFlopNoDrop, rk.rule.jackpot.enabled ? formatChips(rk.rule.jackpot.amount) : null)}</div>}
+        {!answered && qs.length > 1 && (
+          <div className="mt-2 flex flex-wrap gap-1.5">
+            {qs.map((qq, i) => (
+              <span key={qq.key} className={cn("rounded-md border px-2 py-0.5 text-xs font-semibold tabular", i === step ? "border-brass text-brass" : i < step ? "border-line text-text" : "border-line text-muted")}>
+                {qq.label}
+                {i < step && `: ${formatChips(amounts[qq.key])}`}
+              </span>
+            ))}
+          </div>
+        )}
+        {!answered && q && (
           <div className={cn("mt-2", !done && "pointer-events-none opacity-40")}>
-            <NumberInput label="POT" value={value} onChange={setValue} onSubmit={submit} disabled={!done} />
+            <NumberInput label={q.label} value={value} onChange={setValue} onSubmit={submit} disabled={!done} />
           </div>
         )}
       </Panel>
@@ -147,6 +172,33 @@ export function PotMode({ scenario, answered, onAnswer, verdict, startTimer }: M
                 </span>
               ))}
             </div>
+            {rk && (
+              <div className="mt-3 border-t border-line pt-2">
+                <Label className="mb-1">{t.rakeTitle}</Label>
+                {rk.reason === "no-flop" && <div className="mb-1 text-xs text-warn">{t.noFlopNoDropApplied}</div>}
+                <table className="w-full text-sm tabular">
+                  <tbody>
+                    {qs.slice(1).map((qq) => {
+                      const ok = answered.grade.parts?.[qq.key];
+                      return (
+                        <tr key={qq.key}>
+                          <td className="py-0.5 font-semibold">{qq.label}</td>
+                          <td className="text-right font-bold text-brass">{formatChips(qq.answer)}</td>
+                          <td className={cn("w-24 pl-2 text-right text-xs", ok ? "text-good" : "text-bad")}>
+                            {ok ? "✓" : "×"} {Number.isFinite(userAmounts[qq.key]) ? formatChips(userAmounts[qq.key]) : "—"}
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+                {!rk.reason && (
+                  <div className="mt-1 text-xs text-muted">
+                    {t.rakeExplain(formatChips(scenario.answer), rk.rule.percent, formatChips(rk.uncapped), rk.rule.cap && rk.uncapped > rk.rule.cap ? formatChips(rk.rule.cap) : null)}
+                  </div>
+                )}
+              </div>
+            )}
             <button type="button" className="mt-2 text-xs text-muted underline-offset-2 hover:underline" onClick={() => setShowLog((v) => !v)}>
               {showLog ? t.logHide : t.logShow}
             </button>

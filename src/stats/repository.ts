@@ -27,6 +27,11 @@ export function migrate(raw: unknown): StatsData {
         ...doc.settings,
         levels: { ...base.settings.levels, ...doc.settings?.levels },
         players: { ...base.settings.players, ...doc.settings?.players },
+        cash: {
+          ...base.settings.cash,
+          ...doc.settings?.cash,
+          rake: { ...base.settings.cash.rake, ...doc.settings?.cash?.rake, jackpot: { ...base.settings.cash.rake.jackpot, ...doc.settings?.cash?.rake?.jackpot } },
+        },
       },
       streak: { ...base.streak, ...doc.streak },
       records: Array.isArray(doc.records) ? doc.records : [],
